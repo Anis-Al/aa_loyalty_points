@@ -12,7 +12,10 @@ class TestPointsStatement(TestSaleCouponCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.partner_a = cls.env['res.partner'].create({'name': "Jean Jacques"})
+        cls.partner_a = cls.env['res.partner'].create({
+            'name': "Jean Jacques",
+            'lang': 'en_US',
+        })
         cls.program = cls.env['loyalty.program'].create({
             'name': "Statement program",
             'program_type': 'loyalty',
@@ -98,6 +101,13 @@ class TestPointsStatement(TestSaleCouponCommon):
         self.assertIn("Movement 0", html)
         self.assertNotIn("Showing the last", html)
 
+    def test_report_drops_the_stock_header_and_footer(self):
+        html = self._render_report(self.card)
+
+        self.assertNotIn('<div class="header">', html)
+        self.assertNotIn('<div class="footer">', html)
+        self.assertIn('class="article"', html)
+
     def test_report_on_a_coupon_has_no_statement(self):
         html = self._render_report(self.coupon_card)
 
@@ -118,6 +128,24 @@ class TestPointsStatement(TestSaleCouponCommon):
 
         self.assertNotIn("Your current balance", body)
         self.assertIn(self.coupon_card.code, body)
+
+    def test_the_balance_shows_its_money_value(self):
+        self.program.reward_ids.unlink()
+        reward = self.env['loyalty.reward'].create({
+            'program_id': self.program.id,
+            'reward_type': 'discount',
+            'discount_mode': 'per_point',
+            'discount': 0.01,
+        })
+
+        money = self.card._get_points_money_value()
+        self.assertIn("1,20", money.replace('.', ','))
+        self.assertIn(money, self._render_mail(self.card))
+        self.assertIn("1.20", self._render_report(self.card).replace(',', '.'))
+
+        reward.discount = 1
+        self.assertEqual(self.card._get_points_money_value(), '')
+        self.assertNotIn("1.20", self._render_report(self.card).replace(',', '.'))
 
     def test_our_body_replaces_the_stock_one(self):
         template = self.env.ref('loyalty.mail_template_loyalty_card')

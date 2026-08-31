@@ -16,8 +16,8 @@ follow them even with no other context.**
    only in code comments. The manual acceptance pass lives in `TEST_MANUAL.md`
    next to this file — keep it in step when behaviour changes.
 4. **`mconfort` is the working database.** Install and test there.
-5. Wording in the product is **English**; French translation comes later through a
-   `.po` file.
+5. Wording in the product is **English**; French lives in `i18n/fr.po`, and in
+   `body_html@fr_FR` for the email body. Keep both in step with the source.
 
 | Lot | Scope | Status |
 |---|---|---|
@@ -26,7 +26,27 @@ follow them even with no other context.**
 | A | Portal: `/my/loyalty` counter, page, history | **done** — 12 tests green |
 | B | Sale order: coupon stat button + points totals | **done** — 13 tests green |
 
-Last full run: 2026-08-31 on `mconfort` — **42 tests, 0 failed, 0 errors**.
+| E | Coupon report redesigned (own layout, no header/footer) | **done** — 44 tests green |
+
+Last full run: 2026-08-31 on `mconfort` — **44 tests, 0 failed, 0 errors**.
+
+### Open — not done yet
+
+- **The contact bar is not pinned to the bottom edge of the page.** It bleeds
+  edge to edge and sits below the thank-you block, leaving roughly 30 mm of white
+  under it on a short card. Three routes tried and rejected: the real
+  wkhtmltopdf page footer (`div.footer`) is **broken on this machine**, see the
+  change log; `position: fixed` is dropped by wkhtmltopdf; and a `min-height`
+  spacer on the content wrapper is ignored. Left in flow on purpose — it is the
+  only variant that renders at all.
+- **`refund_policy` / `allow_negative_points`** ship with defaults and a form
+  group but have never been exercised on live data, only in tests.
+- PRD §C2 phase 2 (statement cron, `last_statement_date`) and the `email_from`
+  change on the coupon template: still not built, still no decision.
+
+Product wording is English; **French ships in `i18n/fr.po`**, except the coupon
+email body, which cannot live in a `.po` — see the design note on
+`body_html@fr_FR`.
 
 > ## `next_order_coupons` is in scope — deviation from PRD §D8
 >
@@ -344,6 +364,215 @@ name. It is the client's specification document, not part of the module, and the
 reference to it at the top of this file still points at the real filename.
 
 Suite re-run on `mconfort` under the new name: **42 tests, 0 failed, 0 errors**.
+
+### 2026-08-31 — French translation (`i18n/fr.po` + email body)
+
+Client report: the coupon email and the card report stayed English for a French
+user, and the exported translation template had no keys for the email.
+
+**Both symptoms, one root cause each.**
+
+**1. The report/portal keys were there all along — the module just shipped no
+`i18n/`.** Verified by exporting the POT for `aa_loyalty_points`: 48 keys,
+including every term of `loyalty_report_points_statement` and
+`portal_my_loyalty`. Added `i18n/fr.po` covering them. Skipped on purpose: the
+`t-out` placeholder samples (`0 Points`, `10 Points`, `100 Points`,
+`Order S00001`) which never render, and the inherited `ir.model` /
+`ir.model.fields` labels (`ID`, `Display Name`, `Journal Entry`, `Sales Order`,
+`Loyalty Coupon`, …) which core already translates on the same records.
+
+**2. The email keys can never be in our `.po`, and the French body was stale.**
+`loyalty.mail_template_loyalty_card` has `ir_model_data.module = 'loyalty'`. The
+export is driven by that column (`tools/translate.py:1399`), so `body_html` terms
+belong to the **loyalty** module's POT, not ours — we only write a field on a
+record we do not own. Worse: `body_html` is `translate=True` (model-level jsonb,
+keys `en_US` + `fr_FR`), and our data file wrote **only `en_US`**. The `fr_FR`
+slot still held Odoo's original French body. **Every French customer was getting
+the stock Odoo email**, with no balance line and none of our wording, while
+`test_our_body_replaces_the_stock_one` passed because it reads `en_US`.
+
+Fixed by adding a `body_html@fr_FR` field to `data/mail_template_data.xml`. Odoo
+19 reads `@lang`-suffixed fields straight out of a module's data files
+(`ir_module.py:971` → `XMLDataFileReader`, `translate.py:798`); the record loader
+skips any field whose name contains `@` (`convert.py:395`). Same convention as
+`l10n_ar/data/l10n_latam_identification_type_data.xml`.
+
+Three traps, all hit:
+
+- **`type="html"` is illegal on a `@lang` field.** The RelaxNG schema
+  (`import_xml.rng:108-118`) requires `type="html"` to contain at least one child
+  *element*, and the reader only takes `field.text` — so the value must be plain
+  text. Result: `AssertionError: Element odoo has extra content: record, line 4`,
+  which names the record, not the field. Ship the markup as CDATA with **no
+  `type`** attribute.
+- **A plain `-u` does not overwrite an existing translation.**
+  `overwrite_existing_translations` defaults to False, and `fr_FR` already had
+  Odoo's body. The deploy needs `--i18n-overwrite` **once**:
+
+  ```powershell
+  ... -d mconfort -u aa_loyalty_points --i18n-overwrite --stop-after-init --no-http
+  ```
+
+- **Translating the module broke three tests that asserted English labels.**
+  `mconfort`'s website is French-only (`lang_url_code: "fr"`), so `/my/loyalty`
+  renders `fr_FR` regardless of the portal user's `lang` — setting `lang: 'en_US'`
+  on the test users changes nothing and was reverted. `test_the_history_is_on_the_page_itself`
+  now asserts language-neutral anchors (`o_portal_my_doc_table`, five `<th>`)
+  instead of "Earned"/"Used". The two `test_statement.py` failures were different:
+  `loyalty.loyalty_report_i18n` renders in the **card partner's** language, so
+  `partner_a` is now created with `lang: 'en_US'`, which is what those tests always
+  meant.
+
+Suite re-run: **42 tests, 0 failed, 0 errors.**
+
+### 2026-08-31 — plain email body, and points shown in money
+
+Client call, two changes on `loyalty.mail_template_loyalty_card`.
+
+**1. No background styles.** The body was a `<table>` with
+`background:#ffffff; color:#333333` and a grey chip
+(`background-color:#F1F1F1`) around the code. Both gone; the body is now plain
+`<p>` blocks in a bare `<div>`, no `style` attribute anywhere. Same in both
+languages. Asserted on the live card: `'background' in body` is False.
+
+**2. The balance carries its money value.** "Votre solde actuel : 430 Point(s) de
+réduction (4,30 €)". New `loyalty.card._get_points_money_value()` in
+`models/loyalty_card.py` returns the formatted amount, or `''` when the program
+has no per-point money rate.
+
+The rate comes from the program's own reward: the first
+`reward_type == 'discount'` with `discount_mode == 'per_point'`, whose `discount`
+is the currency amount **per point**. On `mconfort` that is reward 5 on program 2
+at `0.01 €`/point, which is why 430 points read as 4,30 €. Formatted with
+`formatLang(..., currency_obj=program.currency_id)`, so it follows the reader's
+language — comma in French, dot in English — and the program's currency.
+
+`discount in (0, 1)` returns `''`. Rate 1 means the money figure equals the point
+figure, which is the eWallet case (program 1, `portal_point_name = "€"`): printing
+"100 € (100,00 €)" is noise. A program with no per-point reward — a percentage
+discount, a free product — has no rate at all and also returns `''`, so the
+parenthesis simply does not render.
+
+**Not implemented: `discount_max_amount`.** A program capping the discount per
+order would show a money value higher than what a single order can actually
+redeem. No live program sets it (all three are `0.0`). Clamp in
+`_get_points_money_value` if one ever does.
+
+One test added, `test_the_balance_shows_its_money_value`, covering both branches.
+It compares against the helper's own output rather than a hardcoded `"1.20"` —
+the first version failed because the test env formats as `$ 1,20`, currency
+symbol and decimal comma both coming from the environment, not from us.
+
+**This change touches `models/`, so the live service must be restarted** — see
+"Deploying a change to `mconfort`". Until it is, the running process has the old
+`loyalty.card` class and rendering the template raises on the missing method.
+
+**3. Signature dropped.** The `<t t-if="object._get_signature()">` block and its
+`--` separator are gone from both bodies. It duplicated the sign-off: the body
+already ends "L'équipe M'Confort", and the signature rendered the same string
+again two lines below. `_get_signature()` itself is untouched — only this template
+stopped calling it.
+
+Suite: **43 tests, 0 failed, 0 errors.**
+
+### 2026-08-31 — money value on the report too
+
+Client call: the PDF should show what the email shows. `loyalty_report_points_statement`
+now calls the same `loyalty.card._get_points_money_value()` and prints it in
+parentheses after `points_display` — "120 Points (1,20 €)". Same gate as the
+email: an empty string (no per-point reward, or rate 1) renders no parenthesis.
+No new translatable term — the amount is formatted by `formatLang`, which follows
+the reader's language; the report renders in the **card partner's** language.
+
+`test_the_balance_shows_its_money_value` extended to the report. It asserts on the
+digits (`"1.20"` after normalising the decimal comma), not on the helper's own
+output: mail and report render in different languages in the test env, so the
+helper's string was `$ 1,20` while the report printed `$ 1.20`.
+
+View-only change — `-u` deploys it, no service restart needed.
+
+Suite: **43 tests, 0 failed, 0 errors.**
+
+### 2026-08-31 — coupon report redesigned, stock layout dropped
+
+Client call, from a supplied mockup: the coupon PDF becomes a designed voucher and
+loses Odoo's report header and footer.
+
+`loyalty_report_points_statement` no longer *adds a block* to the stock report — it
+**replaces the whole body** of `loyalty.loyalty_report`
+(`xpath //t[@t-call='web.internal_layout'] position="replace"`). Sections, top to
+bottom: company logo + "Loyalty reward" chip, cream congratulations card, navy card
+with the code and the barcode, the points card (balance + statement table +
+"Current balance" row), a light-blue Validity / Need help band, the thank-you block,
+and a navy contact bar (website, phone, city, each `t-if`). Everything is gated the
+same way as before: the points card only renders when `_shows_points_statement()`.
+
+New `data/report_paperformat.xml` — `paperformat_loyalty_card`, A4 with 6 mm margins
+and no header spacing, assigned to `loyalty.report_loyalty_card`. Without it the
+default `base.paperformat_euro` keeps a 40 mm top margin reserved for the header we
+just removed.
+
+New `loyalty_report_icon` template: nine inline SVG icons (bag, gift, star, receipt,
+trophy, calendar, globe, phone, pin, question), called with `icon` and `size`.
+
+Four traps, all hit:
+
+- **Removing `web.internal_layout` removed the `div.article` wrapper**, and that
+  wrapper is what `_render_qweb_pdf` looks for. Without it,
+  `ir_actions_report._prepare_html` (`ir_actions_report.py:383`) falls through to its
+  "no bodies" branch and hands wkhtmltopdf a bare fragment — **no `web.minimal_layout`,
+  so no `<meta charset>` and no report stylesheet**. Symptoms: every accent rendered
+  as mojibake (`rÃ©duction`) and the whole page fell back to a serif font. Fix: keep
+  the `class="article"` div with its `data-oe-model` / `data-oe-id` / `data-oe-lang`
+  attributes, copied from `web.basic_layout`. **Do not drop it.**
+- **Font Awesome does not render in the PDF** — hence inline SVG. The `fa` classes
+  come from `web.report_assets_common`, which wkhtmltopdf fetches over HTTP; the
+  glyphs did not come out. SVG needs nothing fetched.
+- **`/logo?company=%d` renders as an empty box.** Use `image_data_uri(company.logo)`,
+  which is what `web.external_layout` itself does (`report_templates.xml:309`).
+- **wkhtmltopdf 0.12.6 is QtWebKit — no flexbox.** The whole layout is `<table>` plus
+  inline styles on purpose; Bootstrap's `row`/`col` would collapse.
+
+French: 18 new terms in `i18n/fr.po`. Two already-translated terms (`Program`, `Used`)
+printed in English until the **existing entries got a second `#:` reference line**
+pointing at `loyalty_report_points_statement` — model-term translations are matched
+per record, so an entry that only names the portal view never reaches the report view.
+Deploy with `-u aa_loyalty_points --i18n-overwrite`.
+
+`test_report_drops_the_stock_header_and_footer` pins the layout change. Suite:
+**44 tests, 0 failed, 0 errors.**
+
+Views and data only — no service restart needed.
+
+### 2026-08-31 — borders dropped, contact bar bled to the page edges
+
+Client report: "the sections got borders" and "the footer isn't full bottom".
+
+**Borders.** Removed the 1 px outline around the points card (now a plain
+`#fcfdfe` block) and the rule under each statement row. The two internal dividers
+stay — they are in the mockup.
+
+**The bar.** Now full-bleed: `paperformat_loyalty_card` drops its left/right
+margins to 0, the content wrapper carries the side padding instead, and the bar
+sits in a `margin: 0 -100px` block so it runs past `minimal_layout`'s Bootstrap
+`.container` and is clipped at the page edge.
+
+**Why it is not pinned to the bottom edge.** Three attempts, all rejected:
+
+- **The real page footer (`div.footer`) does not work on this machine.**
+  `web.minimal_layout` picks which footer to show with
+  `footer.children[vars['webpage'].split('.', 4)[3]]`. `webpage` is the body temp
+  file path, and this user's temp directory is `C:\Users\ANIS~1.ALI\AppData\Local\Temp` — **the `~1.ALI` short name
+  contains a dot**, so the split lands on the wrong field, the lookup returns
+  `undefined`, and the script empties the footer it just cleared. Verified by
+  rendering the same footer file with `onload="subst()"` stripped: the bar prints.
+  Core's own reports hit this too — that is why the invoice's contact bar lives in
+  its *body*, not its footer. Do not reach for `div.footer` here.
+- **`position: fixed` is dropped** by wkhtmltopdf 0.12.6 — nothing rendered at all.
+- **`min-height` on the content wrapper is ignored** — 258 mm, 266 mm, 1045 px and
+  1180 px all produced the same page.
+
+Suite: **44 tests, 0 failed, 0 errors.**
 
 ---
 
@@ -733,6 +962,28 @@ template.
 
 ## `report/points_statement_templates.xml`
 
+**Replaces** the body of the stock coupon report (`loyalty.loyalty_report`, printed by
+the `loyalty.report_loyalty_card` action) with the designed voucher, and drops
+`web.internal_layout` with it — so the PDF carries no Odoo report header or footer.
+
+The `class="article"` div that wraps the whole body is **not decoration**: it is the
+hook `ir_actions_report._prepare_html` looks for. Lose it and the report is handed to
+wkhtmltopdf without `web.minimal_layout`, which means no `<meta charset>` (accents turn
+to mojibake) and no stylesheet. Its `data-oe-lang` is also what makes the per-recipient
+language of `loyalty.loyalty_report_i18n` reach the PDF.
+
+Layout is tables plus inline styles because wkhtmltopdf 0.12.6 is QtWebKit: no flexbox,
+so Bootstrap's grid collapses. Icons are inline SVG (`loyalty_report_icon`) because the
+Font Awesome glyphs do not come out in the PDF, and the logo is embedded with
+`image_data_uri(company.logo)` because `/logo?company=N` renders as an empty box.
+
+`aa_loyalty_points.paperformat_loyalty_card` is assigned to the report action so the
+40 mm top margin `base.paperformat_euro` reserves for a header does not stay behind
+once the header is gone.
+
+The old behaviour — a statement block appended to the stock layout — is described
+below and no longer holds:
+
 Extends the stock coupon report (`loyalty.loyalty_report`, printed by the
 `loyalty.report_loyalty_card` action) with a balance and a statement of the card's
 movements. The whole block is skipped for program types that carry no balance, so
@@ -740,6 +991,65 @@ coupon and promotion printouts are unchanged.
 
 The report is already attached to `loyalty.mail_template_loyalty_card` through its
 `report_template_ids`, so the statement email ships this PDF as is.
+
+## `i18n/fr.po` and `body_html@fr_FR`
+
+Two different mechanisms, because the module owns two different kinds of record.
+
+Our own records — the QWeb views, the `refund_policy` field and its selection, the
+`_()` strings — carry `ir_model_data.module = 'aa_loyalty_points'`, so their terms
+export and import through `i18n/fr.po` like any module's.
+
+`loyalty.mail_template_loyalty_card` does not. We write a field on a record owned
+by `loyalty`, and the exporter groups by `ir_model_data.module`
+(`tools/translate.py:1399`), so its terms will always live in the *loyalty* POT.
+No `.po` we ship can reach it. The French body therefore travels in the data file
+itself, as `body_html@fr_FR` — loaded by `_load_module_terms`
+(`ir_module.py:971`), skipped by the record loader (`convert.py:395`).
+
+Consequences worth knowing:
+
+- The `@lang` field must be **plain text (CDATA), with no `type` attribute**.
+  `type="html"` fails RelaxNG validation (`import_xml.rng:108`) because that branch
+  demands a child element, and `XMLDataFileReader` reads only `field.text` anyway —
+  markup as child nodes would be silently truncated.
+- Changing the French body later needs `-u aa_loyalty_points --i18n-overwrite`.
+  Without the flag the existing `fr_FR` value wins and the edit appears to do
+  nothing.
+- The same `-u loyalty` hazard noted below applies twice over: it rewrites both
+  language slots back to Odoo's. Follow it with `-u aa_loyalty_points --i18n-overwrite`.
+
+The English and French bodies are kept structurally identical — same `t-if`
+guards, same `t-out` expressions — so a change to one must be mirrored in the
+other. There is no test pinning that; the guard is this note.
+
+## `models/loyalty_card.py` — the money value
+
+`_get_points_money_value()` turns a point balance into an amount, for the line
+"Your current balance: 430 Point(s) (4,30 €)".
+
+Odoo has no "what is a point worth" field. The nearest thing that is authoritative
+is the program's own reward: a `reward_type == 'discount'` reward in
+`discount_mode == 'per_point'` stores, in `discount`, the currency amount granted
+per point. That is the rate the customer will actually get at checkout, so it is
+the one quoted. Programs whose reward is a percentage, a free product, or a
+per-order amount have no per-point rate and the method returns `''`.
+
+`discount in (0, 1)` also returns `''`. A rate of 1 makes the money figure a copy
+of the point figure — the eWallet case, where `portal_point_name` is already the
+currency symbol.
+
+`formatLang` is used rather than string formatting so the separators follow the
+reader's language and the symbol follows `program_id.currency_id`.
+
+Deliberately ignored: `discount_max_amount`, which caps a discount per order. A
+capped program would quote more than one order can redeem. No live program sets
+it; clamp here if one ever does.
+
+Used in two places, both through this one method: the email body
+(`data/mail_template_data.xml`, both languages) and the statement block on the
+coupon report (`report/points_statement_templates.xml`). An empty return renders
+no parenthesis in either.
 
 ## `data/mail_template_data.xml`
 

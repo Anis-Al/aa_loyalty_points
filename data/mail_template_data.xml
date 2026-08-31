@@ -3,35 +3,57 @@
 
     <record id="loyalty.mail_template_loyalty_card" model="mail.template">
         <field name="body_html" type="html">
-<table border="0" cellpadding="0" cellspacing="0" style="width:100%; margin:0px auto; background:#ffffff; color:#333333;"><tbody>
-<tr>
-    <td valign="top" style="font-size: 14px;">
-        Hello <t t-out="object._mail_get_customer().name or ''">Brandon Freeman</t>,<br/><br/>
+<div>
+    <p>Hello <t t-out="object._mail_get_customer().name or ''">Brandon Freeman</t>,</p>
 
-        Thank you for your loyalty.<br/><br/>
+    <p>Thank you for your loyalty.</p>
 
+    <p>
         <t t-if="object._shows_points_statement()">
+            <t t-set="money" t-value="object._get_points_money_value()"/>
             Your current balance:
-            <strong t-out="object.points_display or ''">100 Points</strong><br/>
+            <strong t-out="object.points_display or ''">100 Points</strong>
+            <t t-if="money">(<t t-out="money">1.00 €</t>)</t><br/>
         </t>
-        Your card code:
-        <strong style="padding: 4px 8px; border-radius: 3px; background-color: #F1F1F1;" t-out="object.code or ''">15637502648479132902</strong><br/>
+        Your card code: <strong t-out="object.code or ''">15637502648479132902</strong><br/>
         <t t-if="object.expiration_date">
-            Valid until: <t t-out="format_date(object.expiration_date) or ''">2026-12-31</t><br/>
+            Valid until: <t t-out="format_date(object.expiration_date) or ''">2026-12-31</t>
         </t>
-        <br/>
+    </p>
 
-        Your points can be used on your next order, in store and online.<br/><br/>
+    <p>Your points can be used on your next order, in store and online.</p>
 
+    <p>
         See you soon,<br/>
         The <t t-out="object.company_id.name or ''">YourCompany</t> team
-        <t t-if="object._get_signature()">
-            <div>--<br/><t t-out="object._get_signature() or ''">Mitchell Admin</t></div>
-        </t>
-    </td>
-</tr>
-</tbody></table>
+    </p>
+</div>
         </field>
+        <field name="body_html@fr_FR"><![CDATA[<div>
+    <p>Bonjour <t t-out="object._mail_get_customer().name or ''">Brandon Freeman</t>,</p>
+
+    <p>Merci pour votre fidélité.</p>
+
+    <p>
+        <t t-if="object._shows_points_statement()">
+            <t t-set="money" t-value="object._get_points_money_value()"/>
+            Votre solde actuel :
+            <strong t-out="object.points_display or ''">100 Points</strong>
+            <t t-if="money">(<t t-out="money">1,00 €</t>)</t><br/>
+        </t>
+        Code de votre carte : <strong t-out="object.code or ''">15637502648479132902</strong><br/>
+        <t t-if="object.expiration_date">
+            Valable jusqu'au : <t t-out="format_date(object.expiration_date) or ''">2026-12-31</t>
+        </t>
+    </p>
+
+    <p>Vos points sont utilisables dès votre prochaine commande, en boutique comme en ligne.</p>
+
+    <p>
+        À très bientôt,<br/>
+        L'équipe <t t-out="object.company_id.name or ''">YourCompany</t>
+    </p>
+</div>]]></field>
     </record>
 
 </odoo>

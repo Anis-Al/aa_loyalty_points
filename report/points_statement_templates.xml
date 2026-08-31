@@ -1,49 +1,383 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <record id="loyalty.report_loyalty_card" model="ir.actions.report">
+        <field name="paperformat_id" ref="aa_loyalty_points.paperformat_loyalty_card"/>
+    </record>
+
+    <template id="loyalty_report_icon">
+        <t t-if="icon == 'bag'">
+            <svg t-att-width="size" t-att-height="size" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 8h14l-1.2 11.5H6.2z"/>
+                <path d="M8.5 8V6.5a3.5 3.5 0 0 1 7 0V8"/>
+            </svg>
+        </t>
+        <t t-if="icon == 'gift'">
+            <svg t-att-width="size" t-att-height="size" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="9.5" width="18" height="11.5" rx="1.5"/>
+                <path d="M3 13.5h18"/>
+                <path d="M12 9.5V21"/>
+                <path d="M12 9.5C10.5 9.5 6.8 9.6 6.2 7.7 5.7 6.1 7 4.6 8.6 5c1.7.4 3 2.6 3.4 4.5z"/>
+                <path d="M12 9.5c1.5 0 5.2.1 5.8-1.8.5-1.6-.8-3.1-2.4-2.7-1.7.4-3 2.6-3.4 4.5z"/>
+            </svg>
+        </t>
+        <t t-if="icon == 'star'">
+            <svg t-att-width="size" t-att-height="size" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3.5l2.7 5.5 6 .9-4.3 4.2 1 6-5.4-2.8-5.4 2.8 1-6L3.3 9.9l6-.9z"/>
+            </svg>
+        </t>
+        <t t-if="icon == 'receipt'">
+            <svg t-att-width="size" t-att-height="size" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 3h9l3.5 3.5V21l-2.2-1.3L14 21l-2.2-1.3L9.5 21l-2.2-1.3L6 21z"/>
+                <path d="M9 8.5h6M9 12h6M9 15.5h4"/>
+            </svg>
+        </t>
+        <t t-if="icon == 'trophy'">
+            <svg t-att-width="size" t-att-height="size" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M7 4h10v5a5 5 0 0 1-10 0z"/>
+                <path d="M7 5.5H4.5V7a3 3 0 0 0 3 3M17 5.5h2.5V7a3 3 0 0 1-3 3"/>
+                <path d="M12 14v3.5M9 20.5h6M9.5 20.5c0-1.6 1.1-3 2.5-3s2.5 1.4 2.5 3"/>
+            </svg>
+        </t>
+        <t t-if="icon == 'calendar'">
+            <svg t-att-width="size" t-att-height="size" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3.5" y="5" width="17" height="15.5" rx="2"/>
+                <path d="M3.5 10h17M8 3.5v3M16 3.5v3"/>
+                <path d="M7.5 13.5h3M7.5 17h3M13.5 13.5h3"/>
+            </svg>
+        </t>
+        <t t-if="icon == 'globe'">
+            <svg t-att-width="size" t-att-height="size" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="8.5"/>
+                <path d="M3.5 12h17"/>
+                <path d="M12 3.5c2.2 2.3 3.4 5.3 3.4 8.5S14.2 18.2 12 20.5c-2.2-2.3-3.4-5.3-3.4-8.5S9.8 5.8 12 3.5z"/>
+            </svg>
+        </t>
+        <t t-if="icon == 'phone'">
+            <svg t-att-width="size" t-att-height="size" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8.2 3.8l2.1 3.6-1.9 1.9a12 12 0 0 0 6.3 6.3l1.9-1.9 3.6 2.1-.8 2.6c-.3.9-1.2 1.4-2.1 1.2C11.3 18.4 5.6 12.7 4.2 6.7c-.2-.9.3-1.8 1.2-2.1z"/>
+            </svg>
+        </t>
+        <t t-if="icon == 'pin'">
+            <svg t-att-width="size" t-att-height="size" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 21c4-4.6 6-8.1 6-10.6A6 6 0 0 0 6 10.4C6 12.9 8 16.4 12 21z"/>
+                <circle cx="12" cy="10.3" r="2.4"/>
+            </svg>
+        </t>
+        <t t-if="icon == 'question'">
+            <svg t-att-width="size" t-att-height="size" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8.7 8.6a3.4 3.4 0 0 1 6.6 1.1c0 2.3-3.3 2.8-3.3 5"/>
+                <path d="M12 18.6h.01"/>
+            </svg>
+        </t>
+    </template>
+
     <template id="loyalty_report_points_statement" inherit_id="loyalty.loyalty_report">
-        <xpath expr="//span[@t-field='o.code']" position="after">
-            <t t-if="o._shows_points_statement()">
-                <t t-set="statement_lines" t-value="o._get_statement_history()"/>
-                <div class="oe_structure"/>
-                <br/>
-                <h4>Your points balance</h4>
-                <h2 class="fw-bold"><span t-out="o.points_display">100 Points</span></h2>
-                <div class="text-start">
-                    <table t-if="statement_lines" class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Description</th>
-                                <th class="text-end">Earned</th>
-                                <th class="text-end">Spent</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr t-foreach="statement_lines" t-as="line">
-                                <td>
-                                    <span t-out="line.create_date" t-options='{"widget": "date"}'>2026-01-31</span>
-                                </td>
-                                <td><span t-out="line.description">Order S00001</span></td>
-                                <td class="text-end">
-                                    <span t-out="o._format_points(line.issued)">10 Points</span>
-                                </td>
-                                <td class="text-end">
-                                    <span t-out="o._format_points(line.used)">0 Points</span>
-                                </td>
-                            </tr>
-                        </tbody>
+        <xpath expr="//t[@t-call='web.internal_layout']" position="replace">
+
+            <t t-set="company" t-value="o.program_id.company_id or o.env.company"/>
+            <t t-set="customer" t-value="o._mail_get_customer()"/>
+            <t t-set="rule" t-value="o.program_id.rule_ids[:1]"/>
+
+            <div class="article" t-att-data-oe-model="o and o._name" t-att-data-oe-id="o and o.id"
+                 t-att-data-oe-lang="o and o.env.context.get('lang')"
+                 style="color: #12305a; font-size: 15px; line-height: 1.45; font-family: 'Lucida Grande', Helvetica, Verdana, Arial, sans-serif;">
+
+                <div style="padding: 0 4mm 10mm 4mm;">
+
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 26px;">
+                    <tr>
+                        <td style="vertical-align: middle;">
+                            <img t-if="company.logo" t-att-src="image_data_uri(company.logo)"
+                                 t-att-alt="company.name" style="border: 0; height: 58px;"/>
+                        </td>
+                        <td style="vertical-align: middle; text-align: right;">
+                            <table style="border-collapse: collapse; margin-left: auto;">
+                                <tr>
+                                    <td style="vertical-align: middle; padding-right: 12px;">
+                                        <div style="width: 48px; height: 48px; border-radius: 24px; background: #fbf1e2; text-align: center; padding-top: 11px; color: #d9a047;">
+                                            <t t-call="aa_loyalty_points.loyalty_report_icon">
+                                                <t t-set="icon" t-value="'bag'"/>
+                                                <t t-set="size" t-value="24"/>
+                                            </t>
+                                        </div>
+                                    </td>
+                                    <td style="vertical-align: middle; text-align: left;">
+                                        <div style="font-weight: bold; font-size: 17px;">Loyalty reward</div>
+                                        <div style="color: #6e7c8c; font-size: 14px;">Thank you for your trust!</div>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+
+                <div style="background: #fdf5ea; border-radius: 18px; padding: 32px 38px; margin-bottom: 22px;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                            <td style="width: 130px; vertical-align: middle;">
+                                <div style="width: 108px; height: 108px; border-radius: 54px; background: #f7e8d3; text-align: center; padding-top: 28px; color: #12305a;">
+                                    <t t-call="aa_loyalty_points.loyalty_report_icon">
+                                        <t t-set="icon" t-value="'gift'"/>
+                                        <t t-set="size" t-value="52"/>
+                                    </t>
+                                </div>
+                            </td>
+                            <td style="vertical-align: middle; padding-left: 26px;">
+                                <div style="font-size: 27px; font-weight: bold; line-height: 1.25;">
+                                    Congratulations
+                                    <span t-out="customer.name">John Doe</span>,
+                                </div>
+                                <div style="font-size: 21px; line-height: 1.4;">
+                                    here is your reward from
+                                    <span style="color: #d9a047; font-weight: bold;" t-out="company.name">Odoo</span>
+                                </div>
+                                <div style="border-top: 1px solid #e7d6bd; margin: 18px 0;"/>
+                                <div style="font-size: 21px;">on your next order</div>
+                                <t t-foreach="o.program_id.reward_ids" t-as="reward">
+                                    <div style="color: #6e7c8c; font-size: 14px;">
+                                        <span t-out="reward.description">10% on your order</span>
+                                    </div>
+                                </t>
+                            </td>
+                        </tr>
                     </table>
-                    <p t-if="not statement_lines" class="text-muted">
-                        No movement recorded on this card yet.
-                    </p>
-                    <p t-if="len(o.history_ids) &gt; len(statement_lines)" class="text-muted">
-                        Showing the last <span t-out="len(statement_lines)">50</span>
-                        of <span t-out="len(o.history_ids)">500</span> movements.
-                    </p>
                 </div>
-                <div class="oe_structure"/>
-            </t>
+
+                <div style="position: relative; margin-bottom: 22px;">
+                    <div style="position: absolute; top: -16px; left: 4px; width: 66px; height: 66px; border-radius: 33px; background: #e5a03e; text-align: center; padding-top: 17px; color: #ffffff;">
+                        <t t-call="aa_loyalty_points.loyalty_report_icon">
+                            <t t-set="icon" t-value="'gift'"/>
+                            <t t-set="size" t-value="32"/>
+                        </t>
+                    </div>
+                    <div style="background: #12305a; border-radius: 18px; padding: 30px 36px; color: #ffffff; margin-left: 42px;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tr>
+                                <td style="width: 46%; vertical-align: middle; text-align: center; padding-right: 18px;">
+                                    <div style="font-weight: bold; font-size: 18px; white-space: nowrap;">Your reward code</div>
+                                    <div style="color: #e5a03e; font-size: 27px; font-weight: bold; padding: 10px 0; white-space: nowrap;">
+                                        <span t-out="o.code">DEMO_CODE</span>
+                                    </div>
+                                    <div t-if="rule.minimum_amount" style="font-size: 15px;">
+                                        Valid for purchase above
+                                        <span t-out="rule.minimum_amount"
+                                              t-options="{'widget': 'monetary', 'display_currency': rule.currency_id}">$100</span>
+                                    </div>
+                                    <div t-if="rule.minimum_qty &gt; 1" style="font-size: 15px;">
+                                        Minimum purchase of
+                                        <span t-out="rule.minimum_qty">5</span> products
+                                    </div>
+                                </td>
+                                <td style="width: 54%; vertical-align: middle; text-align: center; border-left: 1px solid #3d587d; padding-left: 26px;">
+                                    <div style="font-size: 17px; padding-bottom: 14px; line-height: 1.35;">
+                                        Your code to show in store<br/>or to enter online
+                                    </div>
+                                    <div style="background: #ffffff; border-radius: 8px; padding: 10px 14px;">
+                                        <span t-field="o.code"
+                                              t-options="{'widget': 'barcode', 'width': 600, 'height': 110}">ABCDE12345</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+
+                <t t-if="o._shows_points_statement()">
+                    <t t-set="statement_lines" t-value="o._get_statement_history()"/>
+                    <t t-set="money" t-value="o._get_points_money_value()"/>
+                    <div style="background: #fcfdfe; border-radius: 18px; padding: 28px 32px; margin-bottom: 22px;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tr>
+                                <td style="width: 33%; vertical-align: top; text-align: center; padding-right: 26px;">
+                                    <table style="border-collapse: collapse; margin: 0 auto 14px auto;">
+                                        <tr>
+                                            <td style="vertical-align: middle; padding-right: 10px;">
+                                                <div style="width: 44px; height: 44px; border-radius: 22px; background: #fdf5ea; text-align: center; padding-top: 11px; color: #d9a047;">
+                                                    <t t-call="aa_loyalty_points.loyalty_report_icon">
+                                                        <t t-set="icon" t-value="'star'"/>
+                                                        <t t-set="size" t-value="22"/>
+                                                    </t>
+                                                </div>
+                                            </td>
+                                            <td style="vertical-align: middle; font-weight: bold; font-size: 17px;">
+                                                Your points balance
+                                            </td>
+                                        </tr>
+                                    </table>
+                                    <div style="color: #d9a047; font-size: 52px; font-weight: bold; line-height: 1.05;">
+                                        <span t-out="int(o.points) if o.points == int(o.points) else '%.2f' % o.points">430</span>
+                                    </div>
+                                    <div style="font-size: 18px; padding-top: 4px;"><span t-out="o.point_name">Points</span></div>
+                                    <div t-if="money" style="padding-top: 12px;">
+                                        <span style="display: inline-block; background: #12305a; color: #ffffff; border-radius: 20px; padding: 8px 26px; font-weight: bold; font-size: 18px;"
+                                              t-out="money">4,30 €</span>
+                                    </div>
+                                </td>
+                                <td style="width: 67%; vertical-align: top; padding-left: 28px; border-left: 1px solid #e5e9f0;">
+                                    <table style="border-collapse: collapse; margin-bottom: 14px;">
+                                        <tr>
+                                            <td style="vertical-align: middle; padding-right: 10px;">
+                                                <div style="width: 44px; height: 44px; border-radius: 22px; background: #fdf5ea; text-align: center; padding-top: 11px; color: #d9a047;">
+                                                    <t t-call="aa_loyalty_points.loyalty_report_icon">
+                                                        <t t-set="icon" t-value="'receipt'"/>
+                                                        <t t-set="size" t-value="22"/>
+                                                    </t>
+                                                </div>
+                                            </td>
+                                            <td style="vertical-align: middle; font-weight: bold; font-size: 17px;">
+                                                Your points detail
+                                            </td>
+                                        </tr>
+                                    </table>
+                                    <table t-if="statement_lines" style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                                        <thead>
+                                            <tr style="background: #fdf5ea;">
+                                                <th style="text-align: left; padding: 10px 12px; font-weight: bold;">Date</th>
+                                                <th style="text-align: left; padding: 10px 12px; font-weight: bold;">Description</th>
+                                                <th style="text-align: left; padding: 10px 12px; font-weight: bold;">Program</th>
+                                                <th style="text-align: right; padding: 10px 12px; font-weight: bold;">Earned</th>
+                                                <th style="text-align: right; padding: 10px 12px; font-weight: bold;">Used</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr t-foreach="statement_lines" t-as="line">
+                                                <td style="padding: 10px 12px;">
+                                                    <span t-out="line.create_date" t-options='{"widget": "date"}'>2026-01-31</span>
+                                                </td>
+                                                <td style="padding: 10px 12px;"><span t-out="line.description">Order S00001</span></td>
+                                                <td style="padding: 10px 12px;"><span t-out="o.program_id.name">Loyalty Cards</span></td>
+                                                <td style="padding: 10px 12px; text-align: right;">
+                                                    <span t-out="int(line.issued) if line.issued == int(line.issued) else '%.2f' % line.issued">430</span>
+                                                </td>
+                                                <td style="padding: 10px 12px; text-align: right;">
+                                                    <span t-out="int(line.used) if line.used == int(line.used) else '%.2f' % line.used">0</span>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                    <p t-if="not statement_lines" style="color: #6e7c8c;">
+                                        No movement recorded on this card yet.
+                                    </p>
+                                    <p t-if="len(o.history_ids) &gt; len(statement_lines)" style="color: #6e7c8c; font-size: 13px;">
+                                        Showing the last <span t-out="len(statement_lines)">50</span>
+                                        of <span t-out="len(o.history_ids)">500</span> movements.
+                                    </p>
+                                    <table style="width: 100%; border-collapse: collapse; background: #fdf5ea; border-radius: 10px; margin-top: 14px;">
+                                        <tr>
+                                            <td style="padding: 12px 14px; vertical-align: middle; width: 30px; color: #d9a047;">
+                                                <t t-call="aa_loyalty_points.loyalty_report_icon">
+                                                    <t t-set="icon" t-value="'trophy'"/>
+                                                    <t t-set="size" t-value="20"/>
+                                                </t>
+                                            </td>
+                                            <td style="padding: 12px 6px; font-size: 15px; vertical-align: middle;">Current balance</td>
+                                            <td style="padding: 12px 14px; text-align: right; font-size: 15px; vertical-align: middle;">
+                                                <span t-out="o.points_display">430 Points</span>
+                                                <t t-if="money"> / <span style="color: #d9a047;" t-out="money">4,30 €</span></t>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </t>
+
+                <div style="background: #eef3fa; border-radius: 18px; padding: 24px 32px; margin-bottom: 24px;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                            <td style="width: 50%; vertical-align: middle;">
+                                <table style="border-collapse: collapse;">
+                                    <tr>
+                                        <td style="vertical-align: middle; padding-right: 14px;">
+                                            <div style="width: 54px; height: 54px; border-radius: 27px; background: #ffffff; text-align: center; padding-top: 14px; color: #12305a;">
+                                                <t t-call="aa_loyalty_points.loyalty_report_icon">
+                                                    <t t-set="icon" t-value="'calendar'"/>
+                                                    <t t-set="size" t-value="26"/>
+                                                </t>
+                                            </div>
+                                        </td>
+                                        <td style="vertical-align: middle;">
+                                            <div style="font-weight: bold; font-size: 16px;">Validity</div>
+                                            <div t-if="o.expiration_date" style="color: #6e7c8c; font-size: 14px;">
+                                                Valid until
+                                                <span t-field="o.expiration_date">2026-12-31</span>
+                                            </div>
+                                            <div t-else="" style="color: #6e7c8c; font-size: 14px;">
+                                                No expiry date.
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                            <td style="width: 50%; vertical-align: middle; border-left: 1px solid #d7e0ec; padding-left: 28px;">
+                                <table style="border-collapse: collapse;">
+                                    <tr>
+                                        <td style="vertical-align: middle; padding-right: 14px;">
+                                            <div style="width: 54px; height: 54px; border-radius: 27px; background: #ffffff; text-align: center; padding-top: 14px; color: #12305a;">
+                                                <t t-call="aa_loyalty_points.loyalty_report_icon">
+                                                    <t t-set="icon" t-value="'question'"/>
+                                                    <t t-set="size" t-value="26"/>
+                                                </t>
+                                            </div>
+                                        </td>
+                                        <td style="vertical-align: middle;">
+                                            <div style="font-weight: bold; font-size: 16px;">Need help?</div>
+                                            <div style="color: #6e7c8c; font-size: 14px;">
+                                                Our team is at your service.
+                                                <t t-if="company.phone"><br/><span t-out="company.phone">+33 1 23 45 67 89</span></t>
+                                                <t t-if="company.email"><br/><span t-out="company.email">info@example.com</span></t>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+
+                <div style="text-align: center; margin-bottom: 24px;">
+                    <div style="font-size: 15px; padding-bottom: 10px;">Thank you,</div>
+                    <img t-if="company.logo" t-att-src="image_data_uri(company.logo)"
+                         t-att-alt="company.name" style="border: 0; height: 52px;"/>
+                    <div style="color: #6e7c8c; font-size: 13px; padding-top: 8px;">
+                        <span t-field="company.partner_id"
+                              t-options='{"widget": "contact", "fields": ["address", "email"], "no_marker": True}'>John Doe</span>
+                    </div>
+                </div>
+
+                </div>
+
+                <div style="margin: 0 -100px;">
+                <table style="width: 100%; border-collapse: collapse; background: #12305a; color: #ffffff;">
+                    <tr>
+                        <td t-if="company.website" style="padding: 14px 10px; text-align: center; font-size: 14px;">
+                            <t t-call="aa_loyalty_points.loyalty_report_icon">
+                                <t t-set="icon" t-value="'globe'"/>
+                                <t t-set="size" t-value="17"/>
+                            </t>
+                            <span style="padding-left: 8px;" t-out="company.website">www.example.com</span>
+                        </td>
+                        <td t-if="company.phone" style="padding: 14px 10px; text-align: center; font-size: 14px;">
+                            <t t-call="aa_loyalty_points.loyalty_report_icon">
+                                <t t-set="icon" t-value="'phone'"/>
+                                <t t-set="size" t-value="17"/>
+                            </t>
+                            <span style="padding-left: 8px;" t-out="company.phone">+33 1 23 45 67 89</span>
+                        </td>
+                        <td t-if="company.city" style="padding: 14px 10px; text-align: center; font-size: 14px;">
+                            <t t-call="aa_loyalty_points.loyalty_report_icon">
+                                <t t-set="icon" t-value="'pin'"/>
+                                <t t-set="size" t-value="17"/>
+                            </t>
+                            <span style="padding-left: 8px;" t-out="company.city">Paris</span>
+                        </td>
+                    </tr>
+                </table>
+                </div>
+
+            </div>
         </xpath>
     </template>
 

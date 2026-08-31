@@ -160,10 +160,16 @@ as one of the 28 customers who already hold a card.
 
 ## C — Statement
 
-- [ ] **C-01 The card PDF carries the balance and movements.**
+- [ ] **C-01 The card PDF is the designed voucher.**
       Coupon card ▸ Print ▸ Coupon Code.
-      → Below the barcode: **Your points balance**, then a table of Date /
-      Description / Earned / Spent. The coupon layout above is unchanged.
+      → **No Odoo report header** (no date / company name / page numbers line) and
+      **no footer**. Top to bottom: logo + *Récompense de fidélité*, cream
+      congratulations card, navy card with the code and the barcode, the points
+      card (balance, money value, statement table Date / Description / Programme /
+      Gagnés / Utilisés, *Solde actuel* row), *Validité* / *Besoin d'aide ?*,
+      thank-you block, navy contact bar.
+      → **Everything on one page**, accents correct (*réduction*, not *rÃ©duction*),
+      logos and icons visible, sans-serif type.
 
 - [ ] **C-02 A card with no movements still prints.**
       → Valid PDF showing the balance and "No movement recorded on this card yet."
@@ -199,6 +205,45 @@ as one of the 28 customers who already hold a card.
 - [ ] **R-04 Existing cards were not disturbed.** 1046 cards, 397 with a balance,
       all three programs on **Proportional** with negative balance disallowed.
 
+## L — French
+
+- [ ] **L-01 Portal is French.** `/my/loyalty` as a French customer shows
+      **Mes points**, **Vos cartes**, **Historique**, and the columns
+      **Document / Date / Programme / Gagnés / Utilisés**.
+
+- [ ] **L-02 Program form is French.** Loyalty program → **Avoirs** group,
+      **Points sur avoir** with **Proportionnelle au montant remboursé** /
+      **Totale, dès le premier avoir** / **Aucune reprise**.
+
+- [ ] **L-03 Statement report is French.** Print a loyalty card whose contact has
+      `lang = fr_FR` → **Votre solde de points**, columns
+      **Date / Description / Gagnés / Utilisés**. With the cap hit:
+      *"Affichage des 50 derniers mouvements sur 500 au total."*
+
+- [ ] **L-04 Coupon email is French, and is OURS.** Send the card to a French
+      contact → body starts **Bonjour**, then *Merci pour votre fidélité*,
+      *Votre solde actuel*, *Code de votre carte*.
+      → It must **not** say *Voici votre récompense* or carry the 🤍 emoji: that is
+      Odoo's stock French body, and seeing it means the `fr_FR` slot was rewritten
+      (run `-u aa_loyalty_points --i18n-overwrite`).
+
+- [ ] **L-05 English is intact.** Same checks as L-03 and L-04 with a contact on
+      `lang = en_US`.
+
+- [ ] **L-06 Email is plain.** View source of the sent email → **no**
+      `background`, no `background-color`, no coloured chip around the code.
+      → It ends on *"L'équipe M'Confort"*: **no `--` separator, no signature
+      block** repeating the company name below it.
+
+- [ ] **L-07 Balance shows its money value.** Card on the live program
+      (`0,01 €`/point) with 430 points → *"Votre solde actuel : 430 Point(s) de
+      réduction (4,30 €)"*.
+      → On the **eWallet** program (rate 1) there must be **no** parenthesis:
+      *"100 € "* alone, not *"100 € (100,00 €)"*.
+      → Same figure on the **PDF** (Print ▸ Coupon Code): *430 Point(s) de
+      réduction (4,30 €)* under **Votre solde de points**, and no parenthesis on
+      the eWallet.
+
 ---
 
 ## Cleanup
@@ -208,5 +253,6 @@ as one of the 28 customers who already hold a card.
 - [ ] Archive the `TEST` coupon cards and the `TEST Fidélité` contact; revoke its
       portal access.
 - [ ] Delete `aa_loyalty_points.statement_max_lines` if C-03 was run.
+- [ ] Reset the `lang` of any contact switched to English for L-05.
 - [ ] Confirm the live program is back on **Proportional**, negative balance
       disallowed — D-07 changes it.

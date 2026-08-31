@@ -100,9 +100,8 @@ class TestPortalLoyalty(HttpCase):
         html = self.url_open('/my/loyalty').text
 
         self.assertIn("ALICE MOVEMENT", html)
-        self.assertIn("Document", html)
-        self.assertIn("Earned", html)
-        self.assertIn("Used", html)
+        self.assertIn("o_portal_my_doc_table", html)
+        self.assertEqual(html.count("<th>"), 5)
 
     def test_two_programs_give_two_separate_subtotals(self):
         self._login('alice')

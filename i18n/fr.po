@@ -1,0 +1,307 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* aa_loyalty_points
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 19.0\n"
+"Report-Msgid-Bugs-To: \n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: fr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.portal_loyalty_points_breadcrumbs
+msgid "<span>My Points</span>"
+msgstr "<span>Mes points</span>"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.portal_my_loyalty
+msgid "Adjustment"
+msgstr "Ajustement"
+
+#. module: aa_loyalty_points
+#: model:ir.model.fields,field_description:aa_loyalty_points.field_loyalty_program__allow_negative_points
+msgid "Allow a Negative Balance"
+msgstr "Autoriser un solde négatif"
+
+#. module: aa_loyalty_points
+#. odoo-python
+#: code:addons/aa_loyalty_points/models/sale_order.py:0
+#: model:ir.model.fields,field_description:aa_loyalty_points.field_sale_order__available_coupon_count
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_card_view_list_dialog
+msgid "Available Coupons"
+msgstr "Bons disponibles"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_card_view_list_dialog
+msgid "Balance"
+msgstr "Solde"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.portal_my_home_loyalty
+msgid "Check your balance and your points history"
+msgstr "Consultez votre solde et l'historique de vos points"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_card_view_list_dialog
+msgid "Code"
+msgstr "Code"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.sale_order_view_form_inherit_points
+msgid "Coupons"
+msgstr "Bons"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_program_view_form_inherit_refund
+msgid "Credit Notes"
+msgstr "Avoirs"
+
+#. module: aa_loyalty_points
+#. odoo-python
+#: code:addons/aa_loyalty_points/models/account_move.py:0
+msgid "Credit note %(refund)s on order %(order)s"
+msgstr "Avoir %(refund)s sur la commande %(order)s"
+
+#. module: aa_loyalty_points
+#. odoo-python
+#: code:addons/aa_loyalty_points/models/account_move.py:0
+msgid ""
+"Credit note %(refund)s: %(shortfall)s could not be taken back, the balance "
+"was insufficient."
+msgstr ""
+"Avoir %(refund)s : %(shortfall)s n'ont pas pu être repris, le solde était "
+"insuffisant."
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.portal_my_loyalty
+msgid "Date"
+msgstr "Date"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+msgid "Description"
+msgstr "Description"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.portal_my_loyalty
+msgid "Document"
+msgstr "Document"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.portal_my_loyalty
+msgid "Earned"
+msgstr "Gagnés"
+
+#. module: aa_loyalty_points
+#: model:ir.model.fields.selection,name:aa_loyalty_points.selection__loyalty_program__refund_policy__full
+msgid "Full, on the first credit note"
+msgstr "Totale, dès le premier avoir"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.portal_my_loyalty
+msgid "History"
+msgstr "Historique"
+
+#. module: aa_loyalty_points
+#: model:ir.model.fields,help:aa_loyalty_points.field_loyalty_program__allow_negative_points
+msgid ""
+"If unchecked, taking points back on a credit note is capped at the available"
+" balance and the shortfall is logged on the card."
+msgstr ""
+"Si décoché, la reprise de points sur un avoir est plafonnée au solde "
+"disponible et le manque est consigné sur la carte."
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.portal_my_loyalty
+msgid "Loyalty Cards"
+msgstr "Cartes de fidélité"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.portal_my_home_loyalty
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.portal_my_loyalty
+msgid "My Points"
+msgstr "Mes points"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+msgid "No movement recorded on this card yet."
+msgstr "Aucun mouvement enregistré sur cette carte pour le moment."
+
+#. module: aa_loyalty_points
+#: model:ir.model.fields.selection,name:aa_loyalty_points.selection__loyalty_program__refund_policy__none
+msgid "No recovery"
+msgstr "Aucune reprise"
+
+#. module: aa_loyalty_points
+#: model:ir.model.fields,field_description:aa_loyalty_points.field_loyalty_program__refund_policy
+msgid "Points on Credit Note"
+msgstr "Points sur avoir"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.portal_my_loyalty
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+msgid "Program"
+msgstr "Programme"
+
+#. module: aa_loyalty_points
+#: model:ir.model.fields.selection,name:aa_loyalty_points.selection__loyalty_program__refund_policy__proportional
+msgid "Proportional to the refunded amount"
+msgstr "Proportionnelle au montant remboursé"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+msgid "Showing the last"
+msgstr "Affichage des"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+msgid "Spent"
+msgstr "Utilisés"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.portal_my_loyalty
+msgid "There is no movement on your cards yet."
+msgstr "Aucun mouvement sur vos cartes pour le moment."
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.portal_my_loyalty
+msgid "Total"
+msgstr "Total"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.portal_my_loyalty
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+msgid "Used"
+msgstr "Utilisés"
+
+#. module: aa_loyalty_points
+#: model:ir.model.fields,help:aa_loyalty_points.field_loyalty_program__refund_policy
+msgid ""
+"What happens to the points when a customer credit note is posted on an order"
+" that earned or spent points."
+msgstr ""
+"Ce qu'il advient des points lorsqu'un avoir client est comptabilisé sur une "
+"commande ayant gagné ou utilisé des points."
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.portal_my_loyalty
+msgid "Your cards"
+msgstr "Vos cartes"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+msgid "Your points balance"
+msgstr "Votre solde de points"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+msgid "movements."
+msgstr "au total."
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+msgid "of"
+msgstr "derniers mouvements sur"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.portal_my_loyalty
+msgid "until"
+msgstr "jusqu'au"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+msgid "Congratulations"
+msgstr "Félicitations"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+msgid "Current balance"
+msgstr "Solde actuel"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+msgid "Loyalty reward"
+msgstr "Récompense de fidélité"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+msgid "Minimum purchase of"
+msgstr "Achat minimum de"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+msgid "Need help?"
+msgstr "Besoin d'aide ?"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+msgid "No expiry date."
+msgstr "Pas de date d'expiration."
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+msgid "Our team is at your service."
+msgstr "Notre équipe est à votre écoute."
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+msgid "Thank you for your trust!"
+msgstr "Merci pour votre confiance !"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+msgid "Thank you,"
+msgstr "Merci,"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+msgid "Valid for purchase above"
+msgstr "Valide pour un achat de plus de"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+msgid "Valid until"
+msgstr "Valable jusqu'au"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+msgid "Validity"
+msgstr "Validité"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+msgid "Your code to show in store<br/>or to enter online"
+msgstr "Votre code à présenter en magasin<br/>ou à saisir en ligne"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+msgid "Your points detail"
+msgstr "Détail de vos points"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+msgid "Your reward code"
+msgstr "Votre code de récompense"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+msgid "here is your reward from"
+msgstr "voici votre récompense"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+msgid "on your next order"
+msgstr "sur votre prochaine commande"
+
+#. module: aa_loyalty_points
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
+msgid "products"
+msgstr "produits"

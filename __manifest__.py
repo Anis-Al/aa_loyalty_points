@@ -9,6 +9,7 @@
     'maintainer': "Anis Alim",
     'depends': ['sale_loyalty', 'account'],
     'data': [
+        'data/report_paperformat.xml',
         'report/points_statement_templates.xml',
         'data/mail_template_data.xml',
         'views/loyalty_program_views.xml',
