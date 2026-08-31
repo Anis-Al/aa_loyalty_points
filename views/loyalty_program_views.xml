@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="loyalty_program_view_form_inherit_refund" model="ir.ui.view">
+        <field name="name">loyalty.program.view.form.inherit.dt.loyalty.points</field>
+        <field name="model">loyalty.program</field>
+        <field name="inherit_id" ref="loyalty.loyalty_program_view_form"/>
+        <field name="arch" type="xml">
+            <notebook position="before">
+                <group
+                    string="Credit Notes"
+                    name="refund_settings"
+                    invisible="program_type not in ('loyalty', 'gift_card', 'ewallet')"
+                >
+                    <field name="refund_policy"/>
+                    <field name="allow_negative_points" invisible="refund_policy == 'none'"/>
+                </group>
+            </notebook>
+        </field>
+    </record>
+
+</odoo>

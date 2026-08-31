@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <template
+        id="portal_my_home_loyalty"
+        name="Portal My Home: My Points"
+        customize_show="True"
+        inherit_id="portal.portal_my_home"
+        priority="90"
+    >
+        <div id="portal_common_category" position="inside">
+            <t t-call="portal.portal_docs_entry">
+                <t t-set="icon" t-value="'/aa_loyalty_points/static/src/img/voucher.svg'"/>
+                <t t-set="title">My Points</t>
+                <t t-set="text">Check your balance and your points history</t>
+                <t t-set="url" t-value="'/my/loyalty'"/>
+                <t t-set="placeholder_count" t-value="'loyalty_count'"/>
+            </t>
+        </div>
+    </template>
+
+    <template
+        id="loyalty_buttons_icon"
+        name="Portal sidebar: an icon for every balance program"
+        inherit_id="loyalty.loyalty_buttons"
+    >
+        <xpath expr="//div[hasclass('o_loyalty_card')]//img" position="attributes">
+            <attribute name="t-attf-src">{{ '/loyalty/static/src/img/' + program.program_type + '.svg' if program.program_type in ('loyalty', 'ewallet') else '/aa_loyalty_points/static/src/img/voucher.svg' }}</attribute>
+        </xpath>
+    </template>
+
+    <template id="portal_my_loyalty" name="My Points">
+        <t t-call="portal.portal_layout">
+            <t t-set="breadcrumbs_searchbar" t-value="True"/>
+            <t t-call="portal.portal_searchbar">
+                <t t-set="title">My Points</t>
+            </t>
+
+            <div class="row g-3 mb-4">
+                <div t-foreach="totals" t-as="unit" class="col-12 col-md-6 col-lg-4">
+                    <div class="card h-100 o_loyalty_total">
+                        <div class="card-body">
+                            <div class="small text-muted">Total</div>
+                            <div class="fs-3 fw-bold">
+                                <span t-out="totals[unit]['card']._format_points(totals[unit]['points'])">100 Points</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <h5 class="mt-2">Your cards</h5>
+            <div class="mb-4">
+                <div t-foreach="cards" t-as="card" class="d-flex flex-wrap gap-2 py-2 border-bottom">
+                    <span class="fw-bold" t-out="card.program_id.name">Loyalty Cards</span>
+                    <span class="text-muted" t-out="card.code[-4:].rjust(14, '&#8902;')">⋆⋆⋆⋆1234</span>
+                    <span class="ms-auto" t-out="card.points_display">100 Points</span>
+                    <span t-if="card.expiration_date" class="text-muted">
+                        until <t t-out="card.expiration_date" t-options='{"widget": "date"}'>2026-12-31</t>
+                    </span>
+                </div>
+            </div>
+
+            <h5>History</h5>
+            <t t-if="not history_lines">
+                <p class="alert alert-warning">
+                    There is no movement on your cards yet.
+                </p>
+            </t>
+            <t t-else="" t-call="portal.portal_table">
+                <thead>
+                    <tr class="active">
+                        <th>Document</th>
+                        <th>Date</th>
+                        <th>Program</th>
+                        <th>Earned</th>
+                        <th>Used</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr t-foreach="history_lines" t-as="line">
+                        <td t-if="line.order_id">
+                            <t t-set="order_portal_url" t-value="line._get_order_portal_url()"/>
+                            <a t-if="order_portal_url" t-att-href="order_portal_url">
+                                <t t-out="line._get_order_description()"/>
+                            </a>
+                            <t t-else="">
+                                <t t-out="line._get_order_description()"/>
+                            </t>
+                        </td>
+                        <td t-else=""><span t-out="line.description">Adjustment</span></td>
+                        <td>
+                            <t t-out="line.create_date" t-options='{"widget": "date"}'/>
+                        </td>
+                        <td><span t-out="line.card_id.program_id.name">Loyalty Cards</span></td>
+                        <td><span t-out="line.card_id._format_points(line.issued)">10 Points</span></td>
+                        <td><span t-out="line.card_id._format_points(line.used)">0 Points</span></td>
+                    </tr>
+                </tbody>
+            </t>
+        </t>
+    </template>
+
+    <template
+        id="portal_loyalty_points_breadcrumbs"
+        name="Portal layout: My Points"
+        inherit_id="portal.portal_breadcrumbs"
+        priority="30"
+    >
+        <xpath expr="//ol[hasclass('o_portal_submenu')]" position="inside">
+            <li class="breadcrumb-item" t-if="page_name == 'loyalty_points'">
+                <span>My Points</span>
+            </li>
+        </xpath>
+    </template>
+
+</odoo>

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <template id="loyalty_report_points_statement" inherit_id="loyalty.loyalty_report">
+        <xpath expr="//span[@t-field='o.code']" position="after">
+            <t t-if="o._shows_points_statement()">
+                <t t-set="statement_lines" t-value="o._get_statement_history()"/>
+                <div class="oe_structure"/>
+                <br/>
+                <h4>Your points balance</h4>
+                <h2 class="fw-bold"><span t-out="o.points_display">100 Points</span></h2>
+                <div class="text-start">
+                    <table t-if="statement_lines" class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Description</th>
+                                <th class="text-end">Earned</th>
+                                <th class="text-end">Spent</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr t-foreach="statement_lines" t-as="line">
+                                <td>
+                                    <span t-out="line.create_date" t-options='{"widget": "date"}'>2026-01-31</span>
+                                </td>
+                                <td><span t-out="line.description">Order S00001</span></td>
+                                <td class="text-end">
+                                    <span t-out="o._format_points(line.issued)">10 Points</span>
+                                </td>
+                                <td class="text-end">
+                                    <span t-out="o._format_points(line.used)">0 Points</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p t-if="not statement_lines" class="text-muted">
+                        No movement recorded on this card yet.
+                    </p>
+                    <p t-if="len(o.history_ids) &gt; len(statement_lines)" class="text-muted">
+                        Showing the last <span t-out="len(statement_lines)">50</span>
+                        of <span t-out="len(o.history_ids)">500</span> movements.
+                    </p>
+                </div>
+                <div class="oe_structure"/>
+            </t>
+        </xpath>
+    </template>
+
+</odoo>
