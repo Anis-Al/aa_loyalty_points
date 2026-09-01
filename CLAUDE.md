@@ -23,12 +23,12 @@ follow them even with no other context.**
 |---|---|---|
 | D | Points on customer credit notes | **done** — 16 tests green |
 | C | Points statement on the card report + email | **done** — 8 tests green |
-| A | Portal: `/my/loyalty` counter, page, history | **done** — 12 tests green |
+| A | Portal: `/my/loyalty` counter, page, history | **done** — 11 tests green |
 | B | Sale order: coupon stat button + points totals | **done** — 8 tests green |
 | E | Coupon report redesigned (own layout, no header/footer) | **done** — 44 tests green |
 | F | Automation rule: discount codes expire 12 months after creation | **done** — 47 tests green |
 
-Last full run: 2026-09-01 on `mconfort` — **49 tests, 0 failed, 0 errors**.
+Last full run: 2026-09-01 on `mconfort` — **48 tests, 0 failed, 0 errors**.
 
 ### Open — not done yet
 
@@ -76,10 +76,9 @@ email body, which cannot live in a `.po` — see the design note on
 >
 > **The portal follows the same constant.** `_get_portal_loyalty_card_domain()` uses
 > `BALANCE_PROGRAM_TYPES` rather than Odoo's narrower `['loyalty', 'ewallet']`, and
-> `cards_per_programs` is recomputed with it so the **native sidebar agrees with our
-> page**. Before this, zero cards matched the portal domain and every customer saw
-> an empty portal; now 1046 cards match and 28 of the 49 portal users see their
-> balance. Program 2 has `portal_visible = True`, so showing these to customers is
+> Before this, zero cards matched the portal domain and every customer saw an empty
+> portal; now 1046 cards match and 28 of the 49 portal users see their balance.
+> (The native sidebar block that the domain also fed was removed on 2026-09-01.) Program 2 has `portal_visible = True`, so showing these to customers is
 > what the configuration already asked for.
 
 ---
@@ -675,6 +674,81 @@ Views, Python, an asset and tests. `models/` changed, so **the live service need
 restart** before the count and the dialog agree on the site; the view goes live with
 `-u`, and the new SCSS needs the asset bundle regenerated — `-u` does that.
 
+### 2026-09-01 — program name dropped from the card list, code is the bold line
+
+Client call. Each row under **Your cards** was `program name — code — balance —
+expiry`, with the program name in bold. The name is gone and `card.code` carries the
+`fw-bold` instead, so the row leads with the thing the customer actually needs to
+read and copy.
+
+The name was near-redundant: it repeats for every card on the same program, and the
+subtotal cards above already split the balances by point unit. The history table
+below keeps its own **Program** column, which is where a customer with cards on two
+programs can still tell them apart.
+
+No test changed — none asserted the program name on this page.
+
+Views only — `-u` deploys it, no restart.
+
+Suite: **48 tests, 0 failed, 0 errors.**
+
+### 2026-09-01 — card codes shown in full on `/my/loyalty`
+
+Client call: the codes are no longer masked. `card.code[-4:].rjust(14, '⋆')` became
+plain `card.code`, so the customer reads the whole code off the page instead of
+copying the last four characters out of a coupon email.
+
+Nothing is disclosed that the customer could not already get: the route only ever
+lists **their own** cards (`partner_id = request.env.user.partner_id.id`, hard-coded
+server-side — see the design note on why the routes are safe), and the same code
+already prints in full on the coupon PDF and in the coupon email Odoo sends them.
+The mask was cosmetic, copied from `sale_loyalty.used_gift_card`, which shows a code
+on a *salesperson's* order form, not on the owner's own portal.
+
+`test_the_card_code_is_masked` became `test_the_card_code_is_shown_in_full`.
+
+Views and tests only — `-u` deploys it, no restart.
+
+Suite: **48 tests, 0 failed, 0 errors.**
+
+### 2026-09-01 — portal sidebar loyalty block removed
+
+Client call: the loyalty cards shown next to the personal info on `/my`
+(`portal-loyalty-buttons`) are gone. The page at `/my/loyalty` already shows the
+same balances, better laid out, and the tile links straight to it — the sidebar
+block was a third rendering of the same numbers, next to the address card where it
+does not belong.
+
+`loyalty_buttons_icon` keeps its xmlid (renaming a view mid-flight breaks `-u`, see
+the entry of 2026-08-31) but changes what it does: instead of rewriting the `<img>`
+src per program type, it now removes the whole container.
+
+```xml
+<xpath expr="//div[hasclass('o_loyalty_container')]" position="replace"/>
+```
+
+Removing the container removes core's `/loyalty/static/src/img/{program_type}.svg`
+image with it, so the 404 that motivated `loyalty_buttons_icon` in the first place
+is moot — no icon is rendered at all any more. `voucher.svg` is still used, by the
+`/my` home tile.
+
+`_prepare_home_portal_values` no longer recomputes `cards_per_programs`. That
+override existed only so the sidebar agreed with our page; with no sidebar block,
+nothing reads the key. The loyalty module's own controller still sets it, harmlessly.
+
+`test_the_native_sidebar_is_not_broken` became
+`test_the_native_sidebar_block_is_gone` (asserts `o_loyalty_container`,
+`portal-loyalty-buttons` and `/loyalty/static/src/img/` are all absent from `/my`,
+and that the tile link survives), and
+`test_the_sidebar_shows_the_same_programs_as_the_page` was deleted — there is no
+sidebar left to agree with.
+
+Views, controller and tests. The controller change is a **removal** of a render
+value nothing reads, so the site is consistent whether or not the service has been
+restarted; `-u` alone deploys this.
+
+Suite: **48 tests, 0 failed, 0 errors.**
+
 ### 2026-09-01 — Program column dropped, email out of the thank-you block
 
 Two client calls, both trims on the printed card.
@@ -1182,9 +1256,9 @@ must equal the count over 8.
 
 | File | Role |
 |---|---|
-| `controllers/portal.py` | `loyalty_count` counter, `/my/loyalty`, widened `cards_per_programs` |
-| `views/portal_templates.xml` | home tile, the page, breadcrumbs, `loyalty_buttons_icon` |
-| `static/src/img/voucher.svg` | client-supplied icon, used by the tile and the sidebar |
+| `controllers/portal.py` | `loyalty_count` counter, `/my/loyalty` |
+| `views/portal_templates.xml` | home tile, the page, breadcrumbs, `loyalty_buttons_icon` (removes the sidebar block) |
+| `static/src/img/voucher.svg` | client-supplied icon, used by the `/my` tile |
 
 ### Routes
 
@@ -1196,7 +1270,7 @@ must equal the count over 8.
   `portal_client_category` where every core module puts its own. Inherit priority
   `90` keeps it last within that div.
 - **`/my/loyalty`** and **`/my/loyalty/page/<int:page>`** — the only page. One
-  subtotal per point unit, a compact card list (program, masked code, balance,
+  subtotal per point unit, a compact card list (the code in bold, balance,
   expiry), then the **history table inline**: Document, Date, Program, Earned,
   Used, paged and sorted with the native `_get_loyalty_searchbar_sortings()`.
   Redirects to `/my` when the customer has no card.
@@ -1210,14 +1284,14 @@ The per-card page `/my/loyalty_card/<id>/history` is the loyalty module's own an
 is reused untouched; the card list does not link to it.
 
 Both read `_get_portal_loyalty_card_domain()`, which is wider than Odoo's — see the
-design note on the card domain. The native sidebar is fed from the same domain so
-the two never disagree.
+design note on the card domain. The native sidebar's own loyalty block is removed
+outright (2026-09-01), so there is nothing left for the page to disagree with.
 
-### Tests — `tests/test_portal_loyalty.py`, 12 tests
+### Tests — `tests/test_portal_loyalty.py`, 11 tests
 
-Covers PRD §A4 in full, plus code masking, archived-program exclusion, and the two
-added with the widened domain: a `next_order_coupons` card shows on the page and in
-the sidebar, and no `/loyalty/static/src/img/` reference survives on `/my`. Built
+Covers PRD §A4 in full, plus the unmasked code, archived-program exclusion, a
+`next_order_coupons` card showing on the page, and the removal of the sidebar block
+from `/my`. Built
 on `HttpCase` with three portal users: Alice (two programs), Bob (one, used as the
 foreign customer), Carol (none).
 
@@ -1506,27 +1580,27 @@ tile never appeared. Program 2 carries `portal_visible = True`, so the shop had
 already asked for these to be customer-visible; the core domain simply ignores
 that flag and filters on type instead.
 
-`_prepare_home_portal_values` therefore also **recomputes `cards_per_programs`**
-with the same domain, overriding what `loyalty`'s own controller put there. Without
-that the native sidebar and our page would disagree — the page listing cards the
-sidebar beside it hides.
+`_prepare_home_portal_values` used to also recompute `cards_per_programs` with the
+same domain, so the native sidebar could not disagree with our page. Dropped
+2026-09-01 with the sidebar block itself — nothing renders that key any more.
 
 **Icons.** `loyalty.loyalty_buttons` builds its image src as
 `/loyalty/static/src/img/{program_type}.svg`, and only `loyalty.svg` and
 `ewallet.svg` exist — precisely because the core domain admits only those two
 types. Widening the domain 404s that image for every other type.
 
-`loyalty_buttons_icon` rewrites the attribute: the program's own icon for
-`loyalty` and `ewallet`, and our `static/src/img/voucher.svg` for everything else.
-The home tile uses the same voucher file. Nothing needs declaring in the manifest —
-Odoo serves `/<module>/static/...` for any installed module; only asset *bundles*
-need registering.
+That is moot since 2026-09-01: `loyalty_buttons_icon` now **removes the whole
+`o_loyalty_container`** from the sidebar rather than fixing its image, so no core
+loyalty image is rendered on `/my` at all. `static/src/img/voucher.svg` survives as
+the home tile's icon. Nothing needs declaring in the manifest — Odoo serves
+`/<module>/static/...` for any installed module; only asset *bundles* need
+registering.
 
 `portal.portal_docs_entry` renders the tile icon inside
 `class="o_portal_icon d-none"`, revealed by `portal.portal_docs_entry_layout`
 ("Use Pictograms") — which in Odoo 19 ships `active="True"`, so the icon **is**
 visible out of the box, and is active on `mconfort`. (An earlier version of this
-note claimed the opposite.) The sidebar icon is always visible.
+note claimed the opposite.)
 
 **Nothing sizes `.o_portal_icon`** — grepping the whole addons tree for that class
 returns no SCSS at all. A tile icon is sized purely by the `width`/`height`
@@ -1534,11 +1608,11 @@ attributes on its own `<svg>` root, which every core icon carries and the
 client-supplied file did not. Hence the 64×64 added to `voucher.svg`; its
 112.68×122.88 viewBox letterboxes inside that, so nothing is distorted.
 
-The xpath must stay scoped to `//div[hasclass('o_loyalty_card')]//img`. A bare
-`//img` silently matches images elsewhere in `portal.side_content` — when a
-template that itself inherits is inherited again, the xpath runs against the whole
-combined tree — and an earlier version that rewrote such an image to reference
-`program` took `/my` down with `KeyError: 'program'`.
+The xpath stays scoped to the `o_loyalty_container` div. A bare `//img` silently
+matches images elsewhere in `portal.side_content` — when a template that itself
+inherits is inherited again, the xpath runs against the whole combined tree — and an
+earlier version that rewrote such an image to reference `program` took `/my` down
+with `KeyError: 'program'`.
 
 ## `controllers/portal.py` — totals are never summed across units
 
@@ -1568,10 +1642,12 @@ customer's own cards, resolved server-side.
 
 ## `views/portal_templates.xml` — two details
 
-The masked code follows the convention in `sale_loyalty.used_gift_card`:
-`code[-4:].rjust(14, '⋆')`, which shows the last four characters and masks the
-rest. Note this is the opposite of a literal reading of PRD §A2 ("4 derniers
-caractères masqués"); the core convention it points at is the one implemented.
+The code is printed **in full** (client call, 2026-09-01). PRD §A2 asked for masking
+and the first cut followed `sale_loyalty.used_gift_card`'s
+`code[-4:].rjust(14, '⋆')`; both are superseded. The route only ever lists the
+reader's own cards, and the same code already reaches them in full on the coupon PDF
+and in the coupon email — masking it on their own portal hid nothing and forced them
+back to the email to actually use it.
 
 The `o_loyalty_total` class on each subtotal card exists as a test seam —
 `test_two_programs_give_two_separate_subtotals` counts its occurrences to prove

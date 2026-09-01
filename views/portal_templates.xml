@@ -21,12 +21,10 @@
 
     <template
         id="loyalty_buttons_icon"
-        name="Portal sidebar: an icon for every balance program"
+        name="Portal sidebar: no loyalty cards block"
         inherit_id="loyalty.loyalty_buttons"
     >
-        <xpath expr="//div[hasclass('o_loyalty_card')]//img" position="attributes">
-            <attribute name="t-attf-src">{{ '/loyalty/static/src/img/' + program.program_type + '.svg' if program.program_type in ('loyalty', 'ewallet') else '/aa_loyalty_points/static/src/img/voucher.svg' }}</attribute>
-        </xpath>
+        <xpath expr="//div[hasclass('o_loyalty_container')]" position="replace"/>
     </template>
 
     <template id="portal_my_loyalty" name="My Points">
@@ -52,8 +50,7 @@
             <h5 class="mt-2">Your cards</h5>
             <div class="mb-4">
                 <div t-foreach="cards" t-as="card" class="d-flex flex-wrap gap-2 py-2 border-bottom">
-                    <span class="fw-bold" t-out="card.program_id.name">Loyalty Cards</span>
-                    <span class="text-muted" t-out="card.code[-4:].rjust(14, '&#8902;')">⋆⋆⋆⋆1234</span>
+                    <span class="fw-bold" t-out="card.code">abcd1234</span>
                     <span class="ms-auto" t-out="card.points_display">100 Points</span>
                     <span t-if="card.expiration_date" class="text-muted">
                         until <t t-out="card.expiration_date" t-options='{"widget": "date"}'>2026-12-31</t>

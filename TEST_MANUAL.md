@@ -147,15 +147,16 @@ Grant portal access to `TEST Fidélité` (Action ▸ Grant portal access), or lo
 as one of the 28 customers who already hold a card.
 
 - [ ] **A-01 The tile appears, last, with its icon.** `/my` shows a **My Points**
-      tile linking to `/my/loyalty`, and the sidebar also lists the card.
+      tile linking to `/my/loyalty`. The sidebar next to the personal info shows
+      **no loyalty cards block** — it was removed.
       → The tile is the **last one on the page**, after **Connection & Security**.
       → The voucher icon renders at the same size as the icons on the Addresses
       and Connection & Security tiles beside it — not oversized, not missing.
       Hard-refresh if you have looked at this page before; the SVG is cached.
 
 - [ ] **A-02 Everything on one page.** Open `/my/loyalty`.
-      → A total per unit, then **Your cards** (program, masked code showing only
-      the last 4 characters, balance, expiry), then **History** inline: Document,
+      → A total per unit, then **Your cards** (the **full** coupon code in bold —
+      not masked, no program name, balance, expiry), then **History** inline: Document,
       Date, Program, Earned, Used, with paging. There is **no** separate history
       route any more, and **no Sort By dropdown** — history is newest first.
 
@@ -233,7 +234,8 @@ as one of the 28 customers who already hold a card.
       customer holds no card.
 
 - [ ] **R-02 Native features still work.** Gift Cards stat button, Coupon Code and
-      Reward buttons, `/my/loyalty_card/<id>/history`, and the portal sidebar.
+      Reward buttons and `/my/loyalty_card/<id>/history`. The portal sidebar
+      renders normally minus the loyalty cards block.
 
 - [ ] **R-03 Ordinary accounting is unaffected.** Post a normal customer invoice, a
       vendor bill and a vendor refund.

@@ -32,12 +32,6 @@ class CustomerPortalLoyaltyPoints(CustomerPortal):
             values['loyalty_count'] = request.env['loyalty.card'].sudo().search_count(
                 self._get_portal_loyalty_card_domain()
             )
-        if not counters:
-            values['cards_per_programs'] = dict(request.env['loyalty.card'].sudo()._read_group(
-                domain=self._get_portal_loyalty_card_domain(),
-                groupby=['program_id'],
-                aggregates=['id:recordset'],
-            ))
         return values
 
     @route(

@@ -113,13 +113,12 @@ class TestPortalLoyalty(HttpCase):
         self.assertIn("50 Credits", html)
         self.assertNotIn("150 Points", html)
 
-    def test_the_card_code_is_masked(self):
+    def test_the_card_code_is_shown_in_full(self):
         self._login('alice')
 
         html = self.url_open('/my/loyalty').text
 
-        self.assertIn(self.alice_points_card.code[-4:], html)
-        self.assertNotIn(self.alice_points_card.code, html)
+        self.assertIn(self.alice_points_card.code, html)
 
     def test_a_customer_cannot_read_another_customers_card_history(self):
         self._login('alice')
@@ -163,12 +162,14 @@ class TestPortalLoyalty(HttpCase):
         self.assertEqual(html.count('o_loyalty_total'), 1)
         self.assertNotIn("50 Credits", html)
 
-    def test_the_native_sidebar_is_not_broken(self):
+    def test_the_native_sidebar_block_is_gone(self):
         self._login('alice')
 
         html = self.url_open('/my').text
 
-        self.assertIn('o_loyalty_container', html)
+        self.assertNotIn('o_loyalty_container', html)
+        self.assertNotIn('portal-loyalty-buttons', html)
+        self.assertNotIn('/loyalty/static/src/img/', html)
         self.assertIn('/my/loyalty', html)
 
     def test_a_next_order_coupon_shows_in_the_portal(self):
@@ -191,24 +192,4 @@ class TestPortalLoyalty(HttpCase):
         self.assertEqual(self._counter()['loyalty_count'], 3)
         self.assertEqual(html.count('o_loyalty_total'), 3)
         self.assertIn("75 Coupon points", html)
-        self.assertIn(card.code[-4:], html)
-
-    def test_the_sidebar_shows_the_same_programs_as_the_page(self):
-        program = self.env['loyalty.program'].create({
-            'name': "Portal Coupons",
-            'program_type': 'next_order_coupons',
-            'applies_on': 'future',
-            'trigger': 'auto',
-        })
-        self.env['loyalty.card'].create({
-            'program_id': program.id,
-            'partner_id': self.alice.partner_id.id,
-            'points': 75,
-        })
-        self._login('alice')
-
-        html = self.url_open('/my').text
-
-        self.assertIn("Portal Coupons", html)
-        self.assertIn('/aa_loyalty_points/static/src/img/voucher.svg', html)
-        self.assertNotIn('/loyalty/static/src/img/next_order_coupons.svg', html)
+        self.assertIn(card.code, html)
