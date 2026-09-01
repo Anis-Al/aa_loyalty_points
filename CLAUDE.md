@@ -26,8 +26,9 @@ follow them even with no other context.**
 | A | Portal: `/my/loyalty` counter, page, history | **done** — 12 tests green |
 | B | Sale order: coupon stat button + points totals | **done** — 13 tests green |
 | E | Coupon report redesigned (own layout, no header/footer) | **done** — 44 tests green |
+| F | Automation rule: discount codes expire 12 months after creation | **done** — 47 tests green |
 
-Last full run: 2026-09-01 on `mconfort` — **44 tests, 0 failed, 0 errors**.
+Last full run: 2026-09-01 on `mconfort` — **47 tests, 0 failed, 0 errors**.
 
 ### Open — not done yet
 
@@ -536,6 +537,56 @@ Deploy with `-u aa_loyalty_points --i18n-overwrite`.
 **44 tests, 0 failed, 0 errors.**
 
 Views and data only — no service restart needed.
+
+### 2026-09-01 — Lot F, discount codes expire 12 months after creation
+
+Client call: a card on a `next_order_coupons` program must carry an expiration date
+12 months out. Shipped as a **base.automation rule in module data**, not as a Python
+default — the client asked for an automation rule, and one that lives in
+`data/loyalty_card_automation.xml` is versioned, redeployed by `-u`, and identical on
+every database.
+
+New `data/loyalty_card_automation.xml`, two records:
+
+| xmlid | Model | What |
+|---|---|---|
+| `loyalty_card_expiry_rule` | `base.automation` | `trigger = on_create` on `loyalty.card`, `filter_domain = [("program_id.program_type", "=", "next_order_coupons"), ("expiration_date", "=", False)]` |
+| `loyalty_card_expiry_action` | `ir.actions.server` | `state = object_write`, `update_path = expiration_date`, `evaluation_type = equation`, `value = record.create_date.date() + dateutil.relativedelta.relativedelta(months=12)` |
+
+`base_automation` added to `depends` (already installed on `mconfort`), version bumped
+to `19.0.1.2.0`.
+
+Three decisions taken with the client:
+
+- **Scope is the program *type*, not program id 2.** The domain traverses
+  `program_id.program_type`, so a second discount-code program created later is covered
+  and the rule survives a database where the ids differ. eWallets and loyalty cards are
+  deliberately excluded — an eWallet is the customer's own money and must not expire.
+- **No backfill.** The 1048 existing cards keep no expiry. Setting
+  `create_date + 12 months` on them would instantly expire every coupon older than a
+  year, taking away a balance those customers can spend today.
+- **An expiry already set is never overwritten**, via `("expiration_date", "=", False)`
+  in the domain. `loyalty.generate.wizard` writes `valid_until` into `expiration_date`
+  on manual generation; without that clause the rule would stamp over it.
+
+Two traps worth remembering:
+
+- **`filter_domain` is a stored computed field** (`_compute_filter_domain`, depends on
+  `trigger`), and its compute sets it to `False` for every trigger that has no
+  trigger-specific field — `on_create` included. Passing it in the same `create()` as
+  `trigger` protects it from that compute, which is why the XML works; **writing
+  `trigger` alone afterwards would wipe the domain**.
+- **`_process` builds one context per record**, so `object_write` — which only ever
+  touches `active_id` — is safe on a batch create. A `state = 'code'` action was not
+  needed.
+
+`tests/test_card_expiry.py`, 3 tests: a discount card gets `create_date + 12 months`,
+an eWallet card gets nothing, an explicitly supplied date is kept.
+
+Data and tests only — **no service restart needed**. `base.automation` re-registers its
+hooks when the registry reloads, which registry signalling already triggers.
+
+Suite: **47 tests, 0 failed, 0 errors.**
 
 ### 2026-09-01 — Program column dropped, email out of the thank-you block
 
@@ -1275,6 +1326,36 @@ Consequences worth knowing:
 The English and French bodies are kept structurally identical — same `t-if`
 guards, same `t-out` expressions — so a change to one must be mirrored in the
 other. There is no test pinning that; the guard is this note.
+
+## `data/loyalty_card_automation.xml`
+
+A `base.automation` rather than a `default=` on `loyalty.card.expiration_date`, on the
+client's instruction: the rule is visible and editable under **Settings > Technical >
+Automation Rules**, where a 12 becomes an 18 without a code change.
+
+The value is an `object_write` action in `equation` mode, not a `code` action. One
+expression, no Python block to audit:
+
+```
+record.create_date.date() + dateutil.relativedelta.relativedelta(months=12)
+```
+
+`record` and `dateutil` both come from `ir.actions.server._get_eval_context`.
+`create_date` rather than `today()` so the date stays correct if the rule is ever run
+against a record after the fact; on `on_create` the two are the same value.
+
+The domain does the whole job of scoping, and each clause is load-bearing.
+`("program_id.program_type", "=", "next_order_coupons")` keeps eWallets and loyalty
+cards out — those are the customer's own persistent instrument and must not expire —
+and traverses the relation rather than naming program id 2, so it holds on any
+database. `("expiration_date", "=", False)` is what stops the rule from overwriting the
+`valid_until` that `loyalty.generate.wizard` writes on a manual generation.
+
+**Do not write `trigger` on this record without also writing `filter_domain`.**
+`filter_domain` is stored-computed with `trigger` in its `@api.depends`, and
+`_compute_filter_domain` blanks it for any trigger with no trigger-specific field,
+`on_create` among them. It survives here only because both fields go in the same
+`create()`, where a value supplied in `vals` is protected from the compute.
 
 ## `models/loyalty_card.py` — the money value
 

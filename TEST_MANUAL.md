@@ -190,6 +190,28 @@ as one of the 28 customers who already hold a card.
 
 ---
 
+## F — Expiry on discount codes
+
+- [ ] **F-01 A new discount code expires in 12 months.** Confirm an order that
+      generates a next-order coupon, open **Sales > Products > Coupons** (or the order's
+      **Coupons** button) and read the new card.
+      → **Expiration Date** = the day it was created, one year on.
+
+- [ ] **F-02 An eWallet card gets no expiry.** Generate a card on the Gift Cards
+      program.
+      → **Expiration Date** empty.
+
+- [ ] **F-03 A date you set yourself is kept.** Loyalty program → **Generate Coupons**,
+      fill **Valid Until** with a date a month out.
+      → The card keeps your date; the rule does not stamp over it.
+
+- [ ] **F-04 Existing coupons were not touched.** Open any card created before today.
+      → **Expiration Date** still empty. The rule applies to new cards only.
+
+- [ ] **F-05 The rule is visible and editable.** Settings > Technical > Automation
+      Rules → **Discount code: expires 12 months after creation**, on `loyalty.card`,
+      trigger **On create**.
+
 ## R — Regression
 
 - [ ] **R-01 Orders with no loyalty are untouched.** No Coupons button when the
