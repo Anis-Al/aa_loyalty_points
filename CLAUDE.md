@@ -544,6 +544,44 @@ Deploy with `-u aa_loyalty_points --i18n-overwrite`.
 
 Views and data only — no service restart needed.
 
+### 2026-09-01 — the remaining borders: a Bootstrap 5 reboot rule wkhtmltopdf paints
+
+Client report, after the previous entry: sections *still* have borders. They were
+never ours. The report CSS bundle (`web.report_assets_common`) carries Bootstrap
+5's reboot rule verbatim:
+
+```css
+thead, tbody, tfoot, tr, td, th { border-color: inherit; border-style: solid; border-width: 0; }
+```
+
+`border-style: solid` at **width 0**. wkhtmltopdf 0.12.6 (QtWebKit) paints that
+border anyway, emitting a zero-thickness filled rectangle per cell edge; PDF
+viewers draw a zero-height fill as a hairline. Result: a thin outline around
+**every `<td>`**, coloured `inherit` — so our navy `#12305a` from the article div.
+Since the redesign is built entirely out of nested tables, that is one box per
+layout cell, which is exactly what looked like "borders on the sections".
+
+Odoo knows about the bug — `web/.../reports/bootstrap_review_report.scss:106`
+comments "still has its borders visible in PDFs" — but only patched
+`.table-borderless`, never bare tables.
+
+Fix is one rule, inside the report body:
+
+```html
+<style>table, thead, tbody, tfoot, tr, td, th { border-style: none; }</style>
+```
+
+**No `!important`, deliberately.** Same specificity as Bootstrap's rule but later
+in the document, so it wins; and inline `style="border-left: 1px solid ..."` on
+our four divider cells still beats both. `!important` would have killed the
+dividers.
+
+Measured on the rendered PDF by counting thin filled rectangles in the content
+stream: **145 before, 7 after** — the 7 being our 4 dividers (each painted twice,
+plus the one horizontal rule), now at a real 1 px.
+
+Suite: **44 tests, 0 failed, 0 errors.**
+
 ### 2026-08-31 — borders dropped, contact bar bled to the page edges
 
 Client report: "the sections got borders" and "the footer isn't full bottom".
@@ -980,6 +1018,13 @@ Font Awesome glyphs do not come out in the PDF, and the logo is embedded with
 `aa_loyalty_points.paperformat_loyalty_card` is assigned to the report action so the
 40 mm top margin `base.paperformat_euro` reserves for a header does not stay behind
 once the header is gone.
+
+The one-line `<style>` block at the top of the body is not cosmetic. Bootstrap 5's
+reboot sets `border-style: solid; border-width: 0` on every table element, and
+wkhtmltopdf paints that zero-width border as a hairline — an outline around every
+single `<td>`. Resetting `border-style: none` is what keeps the layout tables
+invisible. It carries no `!important` on purpose, so the inline `border-left` /
+`border-top` dividers still win.
 
 The old behaviour — a statement block appended to the stock layout — is described
 below and no longer holds:
