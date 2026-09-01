@@ -24,11 +24,11 @@ follow them even with no other context.**
 | D | Points on customer credit notes | **done** — 16 tests green |
 | C | Points statement on the card report + email | **done** — 8 tests green |
 | A | Portal: `/my/loyalty` counter, page, history | **done** — 12 tests green |
-| B | Sale order: coupon stat button + points totals | **done** — 13 tests green |
+| B | Sale order: coupon stat button + points totals | **done** — 8 tests green |
 | E | Coupon report redesigned (own layout, no header/footer) | **done** — 44 tests green |
 | F | Automation rule: discount codes expire 12 months after creation | **done** — 47 tests green |
 
-Last full run: 2026-09-01 on `mconfort` — **47 tests, 0 failed, 0 errors**.
+Last full run: 2026-09-01 on `mconfort` — **49 tests, 0 failed, 0 errors**.
 
 ### Open — not done yet
 
@@ -588,6 +588,93 @@ hooks when the registry reloads, which registry signalling already triggers.
 
 Suite: **47 tests, 0 failed, 0 errors.**
 
+### 2026-09-01 — portal sort dropped, coupon dialog trimmed and time-filtered
+
+Four client calls, all trims on things the customer or the salesperson reads.
+
+**1. `/my/loyalty` loses its Sort By dropdown.** `portal_my_loyalty` no longer takes a
+`sortby` argument, no longer calls `_get_loyalty_searchbar_sortings()`, and no longer
+puts `searchbar_sortings` / `sortby` in the render values. `portal.portal_searchbar`
+guards the whole block with `t-if="searchbar_sortings"`, so the template needed no
+change — it is still called, for the breadcrumbs. The history query drops its `order=`
+and falls back to `loyalty.history._order`, `'id desc'`, which is the same newest-first
+order the old default `sortby='date'` produced.
+
+Gone with it: the sortby validation described in the design note below. Nothing left
+reads a sort key off the query string, so there is nothing left to forge.
+
+**2. The Coupons dialog shows Code and Balance only**, and offers only coupons that
+predate the order. `loyalty_card_view_list_dialog` lost `expiration_date`, `program_id`
+and `partner_id` — the dialog exists to read a code off a card, and the domain already
+guarantees the card is unexpired and belongs to this customer, so those three columns
+only restated what the filter had done.
+
+`action_view_available_coupons()` appends
+
+```python
+('order_id', 'not any', [('id', '>=', self.id)])
+```
+
+A coupon is issued *by* an order and spent on a **later** one. Core enforces only half
+of that — `sale_order.py:986` refuses a `applies_on == 'future'` coupon on the order
+that generated it, and says nothing about an order that came before. So a salesperson
+opening last month's quotation was offered a code created this week, which the order
+can never legitimately consume.
+
+**Newer is decided by `id`, not by `date_order`.** `date_order` is user-editable and
+routinely backdated, so it does not answer "which order produced this code first"; the
+id does, and the client's wording was about the order being *new*. Switch the domain to
+compare `order_id.date_order` against `self.date_order` if the business date is ever
+wanted instead.
+
+`not any` rather than a `'|'` pair on purpose: `Many2one.condition_to_sql` wraps a
+negative `any` as `(order_id IS NULL OR order_id NOT IN (...))`
+(`orm/fields_relational.py:535`), so cards with **no** source order — manual generation,
+an eWallet top-up — are kept without a second clause.
+
+**`_compute_available_coupon_count` follows the same rule.** It was briefly left alone —
+the client asked for a restriction on what is *shown*, so the first cut touched only the
+action domain — and that was reverted the same day on live evidence: **S03294** (order
+3293, TEST Fidélité) showed a stat button reading **3** over a dialog with **0** rows.
+All three of that customer's cards are issued by order 3293 itself or by the two orders
+that came after it, so the dialog was right and the button was advertising coupons the
+order can never spend. A count that disagrees with the list it opens is a bug, not a
+feature.
+
+So `order_id` joined the `_read_group` groupby and `counts` became
+`{(partner, company): {source_order_id: count}}`; the per-order total keeps every source
+order with a **lower id**, plus the sourceless ones. Filtering happens in Python, so it
+is still **one query for the whole recordset** — the N+1 test is unchanged and passes.
+An unsaved order compares as `float('inf')`, so a fresh quotation sees every existing
+coupon rather than none.
+
+The filter could not be pushed all the way into the view — a `list` arch has no way to
+express "issued by an order older than the one I was opened from". The action domain is
+the least Python that can say it, and the compute has to agree with it.
+
+**3. The Code column reads left-aligned.** `web`'s own
+`copy_clipboard_field.scss:9` puts `text-align: center` on the value span of every
+`CopyClipboardChar`, while the list header stays left — so header and value disagreed.
+New `static/src/scss/coupon_dialog.scss`, registered in `web.assets_backend`, resets it
+to `left`, scoped by `class="o_aa_coupon_dialog"` on the list root
+(`list_arch_parser.js:198` → the controller's root div) so the widget is untouched
+everywhere else.
+
+**4. French: "Bons" becomes "Coupons disponibles".** Both the stat button (`Coupons`)
+and the dialog title (`Available Coupons`) read "Bons" / "Bons disponibles"; the button
+and the dialog it opens now carry the same name. `i18n/fr.po` only — deploy with
+`--i18n-overwrite`, both slots already had a value.
+
+Two tests: `test_only_coupons_from_earlier_orders_are_offered` on the count and the
+action domain together, and `test_a_customer_whose_only_coupons_are_newer_gets_no_button`
+reproducing S03294 — the button is hidden at zero, so that order now shows none. Suite:
+**49 tests, 0 failed, 0 errors**, and verified against live order 3293: count 0, dialog
+0 rows; its successor S07709 reads 2 and 2.
+
+Views, Python, an asset and tests. `models/` changed, so **the live service needs a
+restart** before the count and the dialog agree on the site; the view goes live with
+`-u`, and the new SCSS needs the asset bundle regenerated — `-u` does that.
+
 ### 2026-09-01 — Program column dropped, email out of the thank-you block
 
 Two client calls, both trims on the printed card.
@@ -1072,17 +1159,22 @@ with the modified template.
   company compatible. No `program_type` filter — any card with a usable balance
   counts.
 - **Clicking it opens a dialog**, not a full list view: `target='new'`,
-  `dialog_size='large'`, its own read-only list (code with a copy-to-clipboard
-  button, balance, expiry, program, customer).
+  `dialog_size='large'`, its own read-only list of **two columns** — code with a
+  copy-to-clipboard button, and balance.
+- **Only coupons issued by an older order** (or by no order at all) are offered, in the
+  dialog **and** in the count: a code can only be spent on an order created after the one
+  that issued it. "Newer" is by `id`.
 - **No points block under the totals.** Removed 2026-08-31 — `sale_loyalty`
   already prints the same figures there. See the change log.
 
-### Tests — `tests/test_sale_order_points.py`, 6 tests
+### Tests — `tests/test_sale_order_points.py`, 8 tests
 
 Cover the count (child-partner rollup, expired/empty card exclusion, no card at
-all), the action's domain and `target='new'`, and the N+1 criterion — asserted as
-a property rather than an absolute number: the query count to read
-`available_coupon_count` over 80 orders must equal the count over 8.
+all), the action's domain and `target='new'`, the exclusion of coupons issued by
+this order or by a newer one — asserted on both the count and the domain — and the N+1
+criterion — asserted as a property rather than an
+absolute number: the query count to read `available_coupon_count` over 80 orders
+must equal the count over 8.
 
 ## Lot A — portal (done)
 
@@ -1456,11 +1548,16 @@ grouping dict keeps one sample card per unit so the template can call
 `_format_points` on it, which is what renders an eWallet balance as currency
 rather than as a bare number.
 
-## `controllers/portal.py` — `sortby` is validated
+## `controllers/portal.py` — there is no sort control
 
-`sortby` is checked against `_get_loyalty_searchbar_sortings()` and falls back to
-`'date'`. The loyalty module's own history route does not do this, so a crafted
-`?sortby=anything` raises `KeyError` and returns a 500 there. Ours does not.
+Dropped 2026-09-01 on the client's instruction. The history table renders in
+`loyalty.history._order`, `'id desc'` — newest first — and the route accepts no
+`sortby`. The dropdown is not hidden, it is absent: `portal.portal_searchbar` only
+draws it when `searchbar_sortings` is in the render values, and it no longer is.
+
+Side effect worth keeping in mind: the validation that used to live here (a crafted
+`?sortby=anything` returns a 500 on the loyalty module's own history route, but not on
+ours) is moot rather than removed — there is no longer a sort key to forge.
 
 ## `controllers/portal.py` — why the routes are safe
 

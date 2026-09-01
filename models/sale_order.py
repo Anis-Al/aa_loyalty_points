@@ -44,20 +44,26 @@ class SaleOrder(models.Model):
         )
         groups = self.env['loyalty.card']._read_group(
             domain=self._get_available_coupon_domain(all_partners),
-            groupby=['partner_id', 'company_id'],
+            groupby=['partner_id', 'company_id', 'order_id'],
             aggregates=['__count'],
         )
-        counts = defaultdict(int)
-        for partner, company, count in groups:
+        counts = defaultdict(lambda: defaultdict(int))
+        for partner, company, source_order, count in groups:
             while partner:
-                counts[(partner.id, company.id)] += count
+                counts[(partner.id, company.id)][source_order.id] += count
                 partner = partner.parent_id
 
         for order in self:
-            total = counts[(order.partner_id.id, False)]
+            keys = [(order.partner_id.id, False)]
             if order.company_id:
-                total += counts[(order.partner_id.id, order.company_id.id)]
-            order.available_coupon_count = total
+                keys.append((order.partner_id.id, order.company_id.id))
+            current_id = order.id if isinstance(order.id, int) else float('inf')
+            order.available_coupon_count = sum(
+                count
+                for key in keys
+                for source_order_id, count in counts[key].items()
+                if not source_order_id or source_order_id < current_id
+            )
 
     def action_view_available_coupons(self):
         self.ensure_one()
@@ -70,7 +76,9 @@ class SaleOrder(models.Model):
             'res_model': 'loyalty.card',
             'view_mode': 'list',
             'views': [(self.env.ref('aa_loyalty_points.loyalty_card_view_list_dialog').id, 'list')],
-            'domain': self._get_available_coupon_domain(all_partners),
+            'domain': self._get_available_coupon_domain(all_partners) + [
+                ('order_id', 'not any', [('id', '>=', self.id)]),
+            ],
             'target': 'new',
             'context': {'create': False, 'dialog_size': 'large'},
         }

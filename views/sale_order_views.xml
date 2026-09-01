@@ -5,12 +5,9 @@
         <field name="name">loyalty.card.view.list.dialog.dt.loyalty.points</field>
         <field name="model">loyalty.card</field>
         <field name="arch" type="xml">
-            <list string="Available Coupons" create="false" edit="false" delete="false">
+            <list string="Available Coupons" class="o_aa_coupon_dialog" create="false" edit="false" delete="false">
                 <field name="code" string="Code" widget="CopyClipboardChar"/>
                 <field name="points_display" string="Balance"/>
-                <field name="expiration_date"/>
-                <field name="program_id"/>
-                <field name="partner_id"/>
             </list>
         </field>
     </record>

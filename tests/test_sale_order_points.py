@@ -52,6 +52,14 @@ class TestSaleOrderPoints(TestSaleCouponCommon):
             })],
         })
 
+    def _create_coupon(self, source_order=None, points=30):
+        return self.env['loyalty.card'].create({
+            'program_id': self.program.id,
+            'partner_id': self.partner_a.id,
+            'points': points,
+            'order_id': source_order and source_order.id,
+        })
+
     def _queries_to_read_counts(self, orders):
         orders.invalidate_recordset(['available_coupon_count'])
         self.env.flush_all()
@@ -116,6 +124,32 @@ class TestSaleOrderPoints(TestSaleCouponCommon):
         self.assertNotIn(empty_card, cards)
         self.assertFalse(action['context']['create'])
         self.assertEqual(action['target'], 'new')
+
+    def test_only_coupons_from_earlier_orders_are_offered(self):
+        older_order = self._create_order()
+        order = self._create_order()
+        newer_order = self._create_order()
+        from_older = self._create_coupon(source_order=older_order)
+        own = self._create_coupon(source_order=order)
+        from_newer = self._create_coupon(source_order=newer_order)
+        no_source = self._create_coupon()
+
+        self.assertEqual(order.available_coupon_count, 2)
+
+        cards = self.env['loyalty.card'].search(order.action_view_available_coupons()['domain'])
+
+        self.assertIn(from_older, cards)
+        self.assertIn(no_source, cards)
+        self.assertNotIn(own, cards)
+        self.assertNotIn(from_newer, cards)
+
+    def test_a_customer_whose_only_coupons_are_newer_gets_no_button(self):
+        self.card.points = 0
+        order = self._create_order()
+        self._create_coupon(source_order=order)
+        self._create_coupon(source_order=self._create_order())
+
+        self.assertEqual(order.available_coupon_count, 0)
 
     def test_the_coupon_count_does_not_query_per_order(self):
         self.card.points = 50

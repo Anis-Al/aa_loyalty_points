@@ -17,6 +17,11 @@
         'views/sale_order_views.xml',
         'views/portal_templates.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'aa_loyalty_points/static/src/scss/coupon_dialog.scss',
+        ],
+    },
     'uninstall_hook': 'uninstall_hook',
     'license': 'LGPL-3',
     'installable': True,

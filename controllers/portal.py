@@ -46,7 +46,7 @@ class CustomerPortalLoyaltyPoints(CustomerPortal):
         auth='user',
         website=True,
     )
-    def portal_my_loyalty(self, page=1, sortby='date', **kw):
+    def portal_my_loyalty(self, page=1, **kw):
         cards_sudo = self._get_portal_loyalty_cards()
         if not cards_sudo:
             return request.redirect('/my')
@@ -56,22 +56,16 @@ class CustomerPortalLoyaltyPoints(CustomerPortal):
             total = totals.setdefault(card.point_name or '', {'points': 0.0, 'card': card})
             total['points'] += card.points
 
-        searchbar_sortings = self._get_loyalty_searchbar_sortings()
-        if sortby not in searchbar_sortings:
-            sortby = 'date'
-
         LoyaltyHistorySudo = request.env['loyalty.history'].sudo()
         domain = [('card_id', 'in', cards_sudo.ids)]
         pager = portal_pager(
             url='/my/loyalty',
-            url_args={'sortby': sortby},
             total=LoyaltyHistorySudo.search_count(domain),
             page=page,
             step=self._items_per_page,
         )
         history_lines = LoyaltyHistorySudo.search(
             domain,
-            order=searchbar_sortings[sortby]['order'],
             limit=self._items_per_page,
             offset=pager['offset'],
         )
@@ -80,8 +74,6 @@ class CustomerPortalLoyaltyPoints(CustomerPortal):
             'cards': cards_sudo,
             'totals': totals,
             'pager': pager,
-            'searchbar_sortings': searchbar_sortings,
-            'sortby': sortby,
             'history_lines': history_lines,
             'page_name': 'loyalty_points',
         })

@@ -111,9 +111,24 @@ The lot that closes the leak. Card balance is read on the coupon card form.
       Open an order for a customer holding a card with points — 397 customers
       qualify; GOULAMHOUSSEIN (card 1256, 5301 pts) is a known one.
       → A ticket button showing the count, next to Gift Cards. Clicking it opens
-      a **dialog** (not a full page) listing only cards with a balance above
-      zero, active and unexpired, with no **New** button. A customer with no
-      card → no button at all.
+      a **dialog** (not a full page) with two columns only — **Code** and
+      **Balance** — listing cards with a balance above zero, active and
+      unexpired, with no **New** button. A customer with no card → no button at
+      all.
+
+- [ ] **B-01b The dialog lists only coupons older than the order.**
+      Confirm an order on a `next_order_coupons` program so it issues a coupon,
+      then reopen it.
+      → That coupon is **not in the dialog** and **not in the stat button count**.
+      Open an **older** order for the same customer → still absent there. Create a
+      **new** order for that customer → it does appear in both.
+      → The count and the number of rows in the dialog must always match. `S03294`
+      is the regression case: three cards on the customer, all issued by that order
+      or by a later one, so the button must not appear at all.
+
+- [ ] **B-01c The Code column lines up.**
+      In the dialog, the value under **Code** starts at the same left edge as the
+      **Code** header, not centred in its cell.
 
 - [ ] **B-02 The code can be copied.**
       In that dialog, click the clipboard icon on a **Code** cell.
@@ -142,7 +157,7 @@ as one of the 28 customers who already hold a card.
       → A total per unit, then **Your cards** (program, masked code showing only
       the last 4 characters, balance, expiry), then **History** inline: Document,
       Date, Program, Earned, Used, with paging. There is **no** separate history
-      route any more.
+      route any more, and **no Sort By dropdown** — history is newest first.
 
 - [ ] **A-03 Documents link.** A history row for an order links to that order; a
       row created by a credit note links to the credit note. Both open with a
