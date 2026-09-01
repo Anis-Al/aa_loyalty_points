@@ -147,7 +147,6 @@ msgstr "Points sur avoir"
 
 #. module: aa_loyalty_points
 #: model_terms:ir.ui.view,arch_db:aa_loyalty_points.portal_my_loyalty
-#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
 msgid "Program"
 msgstr "Programme"
 
@@ -248,8 +247,8 @@ msgstr "Pas de date d'expiration."
 
 #. module: aa_loyalty_points
 #: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
-msgid "Our team is at your service."
-msgstr "Notre équipe est à votre écoute."
+msgid "Our team is at your service, Monday to Saturday, 8am to 5pm."
+msgstr "Notre équipe est à votre écoute du lundi au samedi de 8h à 17h."
 
 #. module: aa_loyalty_points
 #: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement

@@ -25,20 +25,12 @@ follow them even with no other context.**
 | C | Points statement on the card report + email | **done** — 8 tests green |
 | A | Portal: `/my/loyalty` counter, page, history | **done** — 12 tests green |
 | B | Sale order: coupon stat button + points totals | **done** — 13 tests green |
-
 | E | Coupon report redesigned (own layout, no header/footer) | **done** — 44 tests green |
 
-Last full run: 2026-08-31 on `mconfort` — **44 tests, 0 failed, 0 errors**.
+Last full run: 2026-09-01 on `mconfort` — **44 tests, 0 failed, 0 errors**.
 
 ### Open — not done yet
 
-- **The contact bar is not pinned to the bottom edge of the page.** It bleeds
-  edge to edge and sits below the thank-you block, leaving roughly 30 mm of white
-  under it on a short card. Three routes tried and rejected: the real
-  wkhtmltopdf page footer (`div.footer`) is **broken on this machine**, see the
-  change log; `position: fixed` is dropped by wkhtmltopdf; and a `min-height`
-  spacer on the content wrapper is ignored. Left in flow on purpose — it is the
-  only variant that renders at all.
 - **`refund_policy` / `allow_negative_points`** ship with defaults and a form
   group but have never been exercised on live data, only in tests.
 - PRD §C2 phase 2 (statement cron, `last_statement_date`) and the `email_from`
@@ -536,13 +528,207 @@ Four traps, all hit:
 French: 18 new terms in `i18n/fr.po`. Two already-translated terms (`Program`, `Used`)
 printed in English until the **existing entries got a second `#:` reference line**
 pointing at `loyalty_report_points_statement` — model-term translations are matched
-per record, so an entry that only names the portal view never reaches the report view.
+per record, so an entry that only names the portal view never reaches the report view. (`Program`'s second reference was dropped again on 2026-09-01 when the
+column was removed from the report; `Used` keeps its.)
 Deploy with `-u aa_loyalty_points --i18n-overwrite`.
 
 `test_report_drops_the_stock_header_and_footer` pins the layout change. Suite:
 **44 tests, 0 failed, 0 errors.**
 
 Views and data only — no service restart needed.
+
+### 2026-09-01 — Program column dropped, email out of the thank-you block
+
+Two client calls, both trims on the printed card.
+
+**1. The statement table loses its Program column.** Header cell and body cell both
+removed, so the table is now Date / Description / Earned / Used. The column carried
+`o.program_id.name`, which is the *card's own* program repeated on every row — the card
+belongs to exactly one program, so every row printed the same value.
+
+The `"Program"` entry stays in `i18n/fr.po`, because `portal_my_loyalty` still uses it;
+only its second `#:` reference line — the one naming
+`loyalty_report_points_statement` — was removed. That second line was added on purpose
+when the report was designed (model-term translations are matched per record, so an
+entry naming only the portal view never reaches the report view); with the column gone
+it has nothing left to match.
+
+**2. The thank-you block loses the contact email.** The `contact` widget now asks for
+`["address"]` instead of `["address", "email"]`. The address stays.
+
+Between this and the "Need help?" trim earlier today, `company.email` no longer appears
+on the card at all. `company.phone` still does, once, in the contact bar.
+
+Views and translations only — deploy with `-u aa_loyalty_points --i18n-overwrite`,
+no restart.
+
+Suite: **44 tests, 0 failed, 0 errors.**
+
+### 2026-09-01 — barcode no longer overflows its card
+
+The white barcode box ran flush to the right edge of the navy card, eating the card's
+36 px padding on that side.
+
+**Cause.** `t-options="{'widget': 'barcode', 'width': 600}"` does not set a *display*
+width — 600 is the pixel width of the PNG the converter generates
+(`ir_qweb_fields.py:797`). The `<img>` it emits carries no width attribute and no CSS,
+so it prints at its natural 600 px, which is wider than the 54 % table cell it sits in,
+and overflows.
+
+**Fix.** The converter copies through any option named `img_<attr>` whose suffix is in
+`safe_attrs` (`ir_qweb_fields.py:803-805`), and `style` qualifies:
+
+```
+t-options="{'widget': 'barcode', 'width': 600, 'height': 110,
+            'img_style': 'width: 100%; height: auto; display: block;'}"
+```
+
+The image now scales to whatever the cell gives it, keeping its aspect ratio, and the
+box sits inside the card padding. `width: 600` stays — it is the source resolution, and
+lowering it coarsens the bars rather than shrinking the print.
+
+**Reverted the same day:** an earlier read of "reduce the size of the barcode section"
+as a styling request had cut the card padding to `20px 30px`, the code to 23 px, the
+headings to 16/15 px and the barcode to `height: 80`. The ask was about the overflow,
+so all six of those went back to their original values.
+
+Views only — `-u` deploys it, no restart.
+
+Suite: **44 tests, 0 failed, 0 errors.**
+
+### 2026-09-01 — help block trimmed
+
+**"Need help?" keeps only the sentence.** The `company.phone` and `company.email` lines
+under it are gone — the phone already prints in the contact bar and the email in the
+thank-you block, so the panel was repeating both. What is left is the one line with the
+opening hours.
+
+A barcode-card size reduction made in the same pass was reverted; see the entry above.
+
+Views only — `-u` deploys it, no restart.
+
+Suite: **44 tests, 0 failed, 0 errors.**
+
+### 2026-09-01 — footer fills its band, help line gets opening hours
+
+Two follow-ups on the printed card.
+
+**1. The white strip under the bar is gone.** The bar reached the bottom of the page
+but not the bottom of its *band*: `margin_bottom = 14` reserves 14 mm, wkhtmltopdf
+renders the footer document top-aligned inside it, and the bar was only about 10 mm
+tall — so roughly 5 mm of page showed beneath it.
+
+Rather than tune `margin_bottom` to whatever height the bar happens to be (it changes
+with the font and with how many of website / phone / city are set), the footer now
+**fills whatever band it is given**: `height: 100%` on the wrapper chain and on the bar
+table, and the navy `#12305a` moved onto `html, body` as well. Any slack in the band is
+navy, and the row centres itself vertically. Changing `margin_bottom` now only changes
+how thick the bar is.
+
+Verified in the PDF content stream rather than by eye: the bar is the filled rectangle
+`(x=0, y=0, w=991, h=48)` on a `991 × 1403` page box — `x=0` to full width, and `y=0`
+**is** the bottom edge in PDF coordinates. No gap left to measure.
+
+**2. "Besoin d'aide ?" now carries the opening hours.**
+
+| | |
+|---|---|
+| en_US | "Our team is at your service, Monday to Saturday, 8am to 5pm." |
+| fr_FR | "Notre équipe est à votre écoute du lundi au samedi de 8h à 17h." |
+
+Source string in `report/points_statement_templates.xml`, French in `i18n/fr.po` —
+the usual split. Deployed with `-u aa_loyalty_points --i18n-overwrite`; without the
+flag the old French stays, since `fr_FR` already had a value.
+
+Views, data and translations only — **no service restart needed** for these two.
+
+Suite: **44 tests, 0 failed, 0 errors.**
+
+### 2026-09-01 — contact bar pinned to the page bottom, as a real page footer
+
+Client call: the bar must sit on the very bottom edge, full width. It now does. It
+is a **real wkhtmltopdf page footer** (`div.footer`), not a block at the end of the
+body — the route the previous entry had written off as impossible on this machine.
+
+**Two dead ends first, both re-confirmed and both about the same thing.** wkhtmltopdf
+lays the body out in a viewport of page *width* but unbounded *height*, then slices
+it into pages, so there is no such thing as "the bottom of the page" in body CSS:
+
+- `height: 285mm` / `height: 1090px` on a full-page wrapper **table**, with the bar in a
+  `vertical-align: bottom` second row. Ignored — identical output to no height at all.
+  The legacy `height="1090"` attribute is ignored too. (`min-height` on a div was
+  already known not to work; a table is no better.)
+- `<html style="height: 0">` in `web.minimal_layout` also kills any percentage height,
+  so the classic `height: 100%` sticky-footer cannot even be attempted.
+
+**What actually blocked the real footer was not what the previous entry said.**
+That entry blamed `subst()` splitting the temp path on `.` — real, but only half of
+it. Two separate faults, both had to go:
+
+**1. `subst()` wipes the footer.** `web.minimal_layout` picks a company's header/footer
+with `vars['webpage'].split('.', 4)[3]`. `webpage` is the body temp file's **full
+path**, and this user's temp dir is `C:\Users\ANIS~1.ALI\AppData\Local\Temp` — the `~1.ALI`
+short name contains a dot, so the split yields `'tmp'`, `children['tmp']` is
+`undefined`, and the script clears the node before the `appendChild` throws. The
+footer is emptied.
+
+Fixed **from inside our own footer**, one line, no core view touched:
+
+```html
+<script type="text/javascript">window.subst = function () {};</script>
+```
+
+The head declares `function subst()`; our assignment overwrites the binding before
+`onload` fires, so nothing manipulates the node and the footer survives intact. We
+need no substitution — no page numbers, one company.
+
+A 35-line inherit of `web.minimal_layout` rewriting the index parse
+(`report\.body\.tmp\.(\d+)\.`) was written first and **then deleted**: it fixes the bug
+for every report on the machine, but it is a global behaviour change we do not need,
+and the stub above already covers our own report. Bring it back only if core report
+headers/footers are wanted working generally.
+
+**2. `--header-html` suppresses the footer entirely.** This is the one the previous
+entry never found. Odoo passes `--header-html` whenever `_prepare_html` returns a
+truthy header — and it *always* does, because the header document is a fully rendered
+`minimal_layout` page even when it holds an empty
+`<div id="minimal_layout_report_headers"></div>`. With that empty header document
+passed, wkhtmltopdf 0.12.6 drops the footer: same body, same footer, the only
+difference being `--header-html`, gives 78823 bytes (no bar) against 80281 (bar).
+Giving the header real content does not help; only *not passing the flag* does.
+
+New `models/ir_actions_report.py` blanks the header when the headers div is empty, so
+Odoo skips the flag:
+
+```python
+EMPTY_HEADERS = re.compile(r'<div id="minimal_layout_report_headers">\s*</div>')
+```
+
+Scoped by construction: it can only fire on a report that has no `div.header` at all,
+where the header document was empty anyway.
+
+**Layout.** `paperformat_loyalty_card` reserves `margin_bottom = 14` (was 0) for the
+band. The footer draws flush to the bottom edge on its own — wkhtmltopdf puts footer
+content at the bottom of the margin area — so nothing pins it. Full bleed comes from
+the footer document being its own page at full width; the old `margin: 0 -100px`
+hack is gone, replaced inside the footer by
+
+```css
+html, body, #minimal_layout_report_footers, #minimal_layout_report_footers > div {
+    margin: 0 !important; padding: 0 !important; max-width: none !important; width: 100% !important;
+}
+```
+
+which cancels the Bootstrap `.container` padding that `minimal_layout` puts on `body`.
+(That block gained `height: 100%` and the navy background the same day — see the entry
+above.)
+
+**`models/` changed, so the live service needs a restart** — see "Deploying a change
+to `mconfort`". `Restart-Service` failed here for lack of elevation; the running
+service still has the old `ir.actions.report` and will keep printing without the bar
+until someone restarts it from an elevated shell.
+
+Suite: **44 tests, 0 failed, 0 errors.**
 
 ### 2026-09-01 — the remaining borders: a Bootstrap 5 reboot rule wkhtmltopdf paints
 
@@ -998,6 +1184,26 @@ everything.
 than duplicated as a program-type tuple inside the QWeb template and the mail
 template.
 
+## `models/ir_actions_report.py`
+
+One override, `_prepare_html`, and it exists for one reason: **Odoo always passes
+`--header-html` to wkhtmltopdf, and on 0.12.6 an empty header document suppresses the
+page footer.** `_prepare_html` renders the header through `web.minimal_layout` whether
+or not any `div.header` was found, so the result is a full HTML page wrapping an empty
+`<div id="minimal_layout_report_headers"></div>` — truthy, so `if header:` passes and
+the flag goes on the command line.
+
+Measured on this report: same body, same footer, the only difference being the flag,
+78823 bytes without the bar against 80281 with it. A header with real content in it
+does not help; only dropping the flag does.
+
+So the override blanks `header` when the headers div is empty. It cannot affect a
+report that has a header — the regex only matches the empty div — and for a report
+that has none, the document it removes was empty anyway.
+
+This is what makes the contact bar a real page footer rather than a block at the end
+of the body, which is why it can sit on the bottom page edge at all.
+
 ## `report/points_statement_templates.xml`
 
 **Replaces** the body of the stock coupon report (`loyalty.loyalty_report`, printed by
@@ -1017,7 +1223,9 @@ Font Awesome glyphs do not come out in the PDF, and the logo is embedded with
 
 `aa_loyalty_points.paperformat_loyalty_card` is assigned to the report action so the
 40 mm top margin `base.paperformat_euro` reserves for a header does not stay behind
-once the header is gone.
+once the header is gone. Its `margin_bottom = 14` reserves the band the contact
+bar prints in: the bar is a real `div.footer`, so wkhtmltopdf draws it flush to the
+bottom page edge without any CSS pinning it.
 
 The one-line `<style>` block at the top of the body is not cosmetic. Bootstrap 5's
 reboot sets `border-style: solid; border-width: 0` on every table element, and
