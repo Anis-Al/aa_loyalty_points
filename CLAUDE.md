@@ -27,8 +27,9 @@ follow them even with no other context.**
 | B | Sale order: coupon stat button + points totals | **done** — 8 tests green |
 | E | Coupon report redesigned (own layout, no header/footer) | **done** — 44 tests green |
 | F | Automation rule: discount codes expire 12 months after creation | **done** — 47 tests green |
+| G | Points total on the contact form, coupon button hidden once a coupon is used | **done** — 51 tests green |
 
-Last full run: 2026-09-01 on `mconfort` — **48 tests, 0 failed, 0 errors**.
+Last full run: 2026-09-02 on `mconfort` — **51 tests, 0 failed, 0 errors**.
 
 ### Open — not done yet
 
@@ -586,6 +587,85 @@ Data and tests only — **no service restart needed**. `base.automation` re-regi
 hooks when the registry reloads, which registry signalling already triggers.
 
 Suite: **47 tests, 0 failed, 0 errors.**
+
+### 2026-09-02 — Lot G, points total on the contact, coupon button hidden once used
+
+Two client calls.
+
+**1. `res.partner.loyalty_points_total`.** New `models/res_partner.py`: an Integer,
+`compute_sudo`, `groups='base.group_user'`, summing `points` over the customer's usable
+cards. The domain is a copy of core's `_compute_count_active_cards`
+(`loyalty/models/res_partner.py`) — own or child partner, `points > 0`, active program,
+unexpired, company compatible — so the new total can never disagree with the **Loyalty
+Cards** count sitting beside it. One `_read_group` for the whole recordset, rolled up the
+partner tree the same way.
+
+**Shipped by repurposing core's own stat button, not as a button of our own.** Three cuts,
+two rejected by the client the same day:
+
+1. A separate `fa-star` **Points to Use** button next to `loyalty.res_partner_form`'s
+   **Loyalty Cards** one. Rejected: two buttons side by side, the second counting exactly
+   what the first opens.
+2. Both figures in that one button, as a second `o_stat_info` block — the idiom core uses
+   on the product form's **Sold** button (`sale/views/product_views.xml:55-61`). Rejected
+   on looks: two stacked value/label pairs make a cramped, lopsided button.
+3. **What shipped:** the button's `<field name="loyalty_card_count">` is *replaced* by
+   `loyalty_points_total`. One button, one number, standard height, and it still opens
+   that customer's cards through core's untouched `action_view_loyalty_cards`.
+
+`views/res_partner_views.xml` inherits **`loyalty.res_partner_form`** rather than
+`base.view_partner_form`, so the button is guaranteed to be in the tree when the xpath
+runs.
+
+Two decisions worth keeping:
+
+- **The button's `groups` is widened to
+  `base.group_system,sales_team.group_sale_salesman`.** Core made it sysadmin-only, so a
+  salesperson opening a contact saw no loyalty information at all. Comma is OR, so no
+  sysadmin loses it.
+- **`invisible` moves from `loyalty_card_count == 0` to `loyalty_points_total == 0`.** It
+  has to: the count field is no longer in the arch, so the client would have no value to
+  evaluate. The two conditions are equivalent anyway — both sides count the same cards,
+  and points above zero imply a card in the count.
+
+**The card count is gone from the contact form.** Nothing else displayed it, and the list
+it opens shows the cards themselves. Restore it as a second block — cut 2 above — if it is
+ever missed.
+- **The total is summed across programs, deliberately breaking the rule the portal
+  follows.** `controllers/portal.py` never adds balances from different point units
+  (PRD §10 decision 5, and the design note below), because points and a euro-denominated
+  eWallet do not add up. A single stat button cannot show one figure per unit, and the
+  client asked for *the* total. It is safe on `mconfort` — all 1046 cards are on one
+  program with one unit — and the Integer would drop the cents of a currency card.
+  If an eWallet ever holds a balance here, either split the button per unit or move the
+  figure into the form body where several lines fit.
+
+Verified against live data: partner 458 (CENTRE DE SANTE ONAKIA) totals **8628**, the
+top of 397 customers holding a balance.
+
+**2. The Coupons stat button disappears once the order has used a coupon.**
+`_compute_available_coupon_count` now leaves an order at 0 when
+`order.order_line.coupon_id` or `order.applied_coupon_ids` is non-empty; the
+`invisible="available_coupon_count == 0"` already on the button does the hiding, so the
+view is untouched.
+
+**Both signals, not just the order lines.** A reward line carries the `coupon_id` of the
+card that paid for it (`sale_loyalty/models/sale_order_line.py:15`), which is the client's
+"used coupon in the order line". `applied_coupon_ids` covers the window where a code has
+been entered but its reward line does not exist yet — same intent, one clause more.
+**20 orders on `mconfort`** carry a coupon line today and now show no button.
+
+No new field: a Boolean would have to be recomputed and kept in step with the count for
+nothing, since the count already gates the button.
+
+French: one entry in `i18n/fr.po`, "Points to Use" → "Points à utiliser", covering the
+field label and the button. Deployed with `-u aa_loyalty_points --i18n-overwrite`.
+
+`models/` changed, so **the live service needs a restart** — see "Deploying a change to
+`mconfort`". Until then the running process has neither the new field (the contact form
+will fail to render the button) nor the new count rule.
+
+Suite: **51 tests, 0 failed, 0 errors.**
 
 ### 2026-09-01 — portal sort dropped, coupon dialog trimmed and time-filtered
 
@@ -1224,6 +1304,8 @@ with the modified template.
 |---|---|
 | `models/sale_order.py` | `available_coupon_count`, `action_view_available_coupons()` |
 | `views/sale_order_views.xml` | `fa-ticket` stat button, `loyalty_card_view_list_dialog` |
+| `models/res_partner.py` | `loyalty_points_total` |
+| `views/res_partner_views.xml` | core's Loyalty Cards stat button repurposed to show the points |
 
 ### Behaviour
 
@@ -1238,17 +1320,26 @@ with the modified template.
 - **Only coupons issued by an older order** (or by no order at all) are offered, in the
   dialog **and** in the count: a code can only be spent on an order created after the one
   that issued it. "Newer" is by `id`.
+- **No button at all once the order has consumed a coupon** — any line carrying a
+  `coupon_id`, or anything in `applied_coupon_ids`. The count returns 0, which the
+  existing `invisible` already hides.
 - **No points block under the totals.** Removed 2026-08-31 — `sale_loyalty`
   already prints the same figures there. See the change log.
+- **Contact form**: core's **Loyalty Cards** stat button now reads
+  **Points to Use** (`res.partner.loyalty_points_total`) instead of the card count. Same
+  button, same click target, one number. `groups` widened to
+  `base.group_system,sales_team.group_sale_salesman`, `invisible` moved onto the points.
 
-### Tests — `tests/test_sale_order_points.py`, 8 tests
+### Tests — `tests/test_sale_order_points.py`, 11 tests
 
 Cover the count (child-partner rollup, expired/empty card exclusion, no card at
 all), the action's domain and `target='new'`, the exclusion of coupons issued by
 this order or by a newer one — asserted on both the count and the domain — and the N+1
 criterion — asserted as a property rather than an
 absolute number: the query count to read `available_coupon_count` over 80 orders
-must equal the count over 8.
+must equal the count over 8. Three more cover Lot G: the button disappearing once a
+reward line carries a `coupon_id`, and `loyalty_points_total` summing only the usable
+cards (zero when there are none).
 
 ## Lot A — portal (done)
 
@@ -1653,6 +1744,27 @@ The `o_loyalty_total` class on each subtotal card exists as a test seam —
 `test_two_programs_give_two_separate_subtotals` counts its occurrences to prove
 the units were not merged.
 
+## `models/res_partner.py` — the points total
+
+Sums `points` over the same cards core's `loyalty_card_count` counts, so the two figures
+sharing the button always describe the same set — and core's `invisible` on that count is
+what hides the points too, no second condition needed. `groups='base.group_user'` matches
+the core field.
+
+The figure **replaces the card count inside core's Loyalty Cards button** rather than
+living in a button of its own: a separate button would have counted exactly what the one
+beside it opens, and stacking both numbers in one button reads badly. The view inherits
+`loyalty.res_partner_form` directly, so the button exists in the tree when the xpath runs;
+it widens that button's `groups` to `base.group_system,sales_team.group_sale_salesman`,
+without which the points stay behind core's sysadmin-only visibility; and it moves
+`invisible` onto `loyalty_points_total`, which it must, since the count field is no longer
+in the arch for the client to read.
+
+It sums across programs on purpose, which the portal deliberately does not do — a stat
+button has room for one number, and the client asked for the total. Integer, so a
+currency-denominated eWallet balance would lose its cents. Both are fine while every
+card on `mconfort` is on one program with one unit; split per unit if that changes.
+
 ## `models/sale_order.py` — the coupon count is one query
 
 `_compute_available_coupon_count` resolves `child_of` once for the whole recordset
@@ -1660,6 +1772,10 @@ and issues a single `_read_group` on `loyalty.card` grouped by `partner_id` **an
 `company_id`. Grouping by company too is what lets one query serve a mixed-company
 recordset without attributing another company's cards to an order. Counts are then
 rolled up the partner tree, mirroring `res_partner._compute_count_active_cards`.
+
+An order that has already consumed a coupon is skipped and stays at 0, which hides the
+button: a line with a `coupon_id`, or anything in `applied_coupon_ids`. Both are checked
+because the second covers a code entered before its reward line exists.
 
 `compute_sudo=True` is kept for safety, though it turns out not to be strictly
 required: `sale_loyalty/security/ir.model.access.csv` grants

@@ -2,7 +2,7 @@
 
 {
     'name': "Loyalty Points Extension",
-    'version': '19.0.1.2.0',
+    'version': '19.0.1.3.0',
     'category': 'Sales/Sales',
     'summary': "Points recovered on credit notes, and a points statement on the card report and email",
     'author': "Anis Alim",
@@ -14,6 +14,7 @@
         'report/points_statement_templates.xml',
         'data/mail_template_data.xml',
         'views/loyalty_program_views.xml',
+        'views/res_partner_views.xml',
         'views/sale_order_views.xml',
         'views/portal_templates.xml',
     ],

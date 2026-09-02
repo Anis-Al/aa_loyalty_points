@@ -54,6 +54,8 @@ class SaleOrder(models.Model):
                 partner = partner.parent_id
 
         for order in self:
+            if order.order_line.coupon_id or order.applied_coupon_ids:
+                continue
             keys = [(order.partner_id.id, False)]
             if order.company_id:
                 keys.append((order.partner_id.id, order.company_id.id))

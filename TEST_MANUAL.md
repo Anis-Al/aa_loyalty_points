@@ -1,6 +1,6 @@
 # aa_loyalty_points — manual test pass
 
-Run on `mconfort`. 28 checks plus 5 cleanup steps. Tick as you go; report failures
+Run on `mconfort`. 30 checks plus 5 cleanup steps. Tick as you go; report failures
 as `D-01: saw X, expected Y`.
 
 ---
@@ -18,8 +18,8 @@ Restart-Service odoo-server-19.0 -Force
 Use only the `TEST` records created below. **Never post a credit note against a
 real customer order** — it now removes their points for real.
 
-**3. Optional — re-run the automated suite first** (49 tests, all green as of
-2026-08-31). `--http-port` is required: the portal tests need an HTTP daemon and
+**3. Optional — re-run the automated suite first** (51 tests, all green as of
+2026-09-02). `--http-port` is required: the portal tests need an HTTP daemon and
 8069 is held by the live service.
 
 ```powershell
@@ -134,6 +134,21 @@ The lot that closes the leak. Card balance is read on the coupon card form.
       In that dialog, click the clipboard icon on a **Code** cell.
       → It turns to "Copied" and the code is on the clipboard. Paste it into the
       order's **Coupon Code** button to check it is the real code.
+
+- [ ] **B-04 No button once a coupon is used on the order.**
+      Take an order whose stat button shows a count, apply one of its coupon codes
+      (**Coupon Code** button), then reload the form.
+      → The **Coupons** button is gone entirely. Remove the reward line → it comes
+      back. 20 live orders already carry a coupon line and must show no button.
+
+- [ ] **B-05 Points to Use on the contact.**
+      Open a customer holding a balance — CENTRE DE SANTE ONAKIA (partner 458)
+      totals **8628**.
+      → **One** stat button, the native money icon, now reading **Points à
+      utiliser** with that number — the card count is gone and there is no second
+      button beside it. Clicking it opens that customer's loyalty cards.
+      A customer with no card, or one whose cards are all at zero or expired → no
+      button at all. Check as a **salesperson** too, not only as admin.
 
 - [ ] **B-03 No points block under the totals.**
       The order's totals show only the native **Carte de fidélité / Émis(e) /

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="res_partner_view_form_inherit_points" model="ir.ui.view">
+        <field name="name">res.partner.view.form.inherit.aa.loyalty.points</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="loyalty.res_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//button[@name='action_view_loyalty_cards']" position="attributes">
+                <attribute name="groups">base.group_system,sales_team.group_sale_salesman</attribute>
+                <attribute name="invisible">loyalty_points_total == 0</attribute>
+            </xpath>
+            <xpath expr="//button[@name='action_view_loyalty_cards']/field[@name='loyalty_card_count']" position="replace">
+                <field string="Points to Use" name="loyalty_points_total" widget="statinfo"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

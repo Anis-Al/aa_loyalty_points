@@ -304,3 +304,10 @@ msgstr "sur votre prochaine commande"
 #: model_terms:ir.ui.view,arch_db:aa_loyalty_points.loyalty_report_points_statement
 msgid "products"
 msgstr "produits"
+
+#. module: aa_loyalty_points
+#: model:ir.model.fields,field_description:aa_loyalty_points.field_res_partner__loyalty_points_total
+#: model:ir.model.fields,field_description:aa_loyalty_points.field_res_users__loyalty_points_total
+#: model_terms:ir.ui.view,arch_db:aa_loyalty_points.res_partner_view_form_inherit_points
+msgid "Points to Use"
+msgstr "Points à utiliser"

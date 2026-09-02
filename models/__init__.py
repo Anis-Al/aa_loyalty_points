@@ -5,4 +5,5 @@ from . import ir_actions_report
 from . import loyalty_card
 from . import loyalty_history
 from . import loyalty_program
+from . import res_partner
 from . import sale_order

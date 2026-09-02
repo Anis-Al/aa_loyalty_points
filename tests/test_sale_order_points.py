@@ -163,3 +163,39 @@ class TestSaleOrderPoints(TestSaleCouponCommon):
             self._queries_to_read_counts(small),
             "available_coupon_count must not issue a query per order",
         )
+
+    def test_no_button_when_a_coupon_is_already_used_on_the_order(self):
+        self.card.points = 50
+        order = self._create_order()
+
+        self.assertEqual(order.available_coupon_count, 1)
+
+        reward = self.program.reward_ids[0]
+        order.write({'order_line': [Command.create({
+            'name': "10% discount",
+            'product_id': reward.discount_line_product_id.id,
+            'reward_id': reward.id,
+            'coupon_id': self.card.id,
+            'price_unit': -100,
+            'tax_ids': False,
+        })]})
+        order.invalidate_recordset(['available_coupon_count'])
+
+        self.assertEqual(order.available_coupon_count, 0)
+
+    def test_the_partner_totals_the_points_left_to_use(self):
+        self.card.points = 50
+        self._create_coupon(points=30)
+        self.env['loyalty.card'].create({
+            'program_id': self.program.id,
+            'partner_id': self.partner_a.id,
+            'points': 20,
+            'expiration_date': fields.Date.today() - relativedelta(days=1),
+        })
+
+        self.assertEqual(self.partner_a.loyalty_points_total, 80)
+
+    def test_a_partner_with_no_points_totals_zero(self):
+        self.card.points = 0
+
+        self.assertEqual(self.partner_a.loyalty_points_total, 0)
