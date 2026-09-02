@@ -86,6 +86,34 @@ email body, which cannot live in a `.po` — see the design note on
 
 ## Change log
 
+### 2026-09-02 — Saturday hours on the report, tile spacing on `/my`
+
+**1. "Need help?" splits the week.** Was "Monday to Saturday, 8am to 5pm"; Saturday
+closes at 2pm, so the line is now "Monday to Friday from 8am to 5pm, and Saturday from
+8am to 2pm" / "du lundi au vendredi de 8h à 17h, et le samedi de 8h à 14h". Source string in
+`report/points_statement_templates.xml`, French in `i18n/fr.po` — the msgid changed, so
+the old entry was rewritten rather than a new one added. Deploy with
+`-u aa_loyalty_points --i18n-overwrite`.
+
+**2. The "My Points" tile gets its own category row.** It was `position="inside"`
+`portal_common_category`, i.e. a third card in the same `row g-2` as **Addresses** and
+**Connection & Security** — so it sat **0.5rem** (the `g-2` gutter) below them, while every
+other tile group on `/my` is separated by its category div's `mt-3`, **1rem**. The tile read
+as a fourth config card crammed under the other two.
+
+Now `position="after"` that div, wrapping the `portal_docs_entry` in its own
+`<div class="o_portal_category row g-2 mt-3" id="portal_loyalty_category">` — the same
+wrapper core gives each category. Gap becomes 1rem, equal to every other group boundary
+on the page, and the tile still renders last.
+
+Padding the tile itself was not an option: `portal.portal_docs_entry` builds its own class
+string and takes no class parameter, so the only lever is the container it sits in.
+
+Views and translations only — `-u aa_loyalty_points --i18n-overwrite` deploys both, no
+restart.
+
+Suite: **51 tests, 0 failed, 0 errors.**
+
 ### 2026-08-31 — Lot D, points on credit notes
 
 Created the module. Added `models/account_move.py` (recovery on `_post`, revert on

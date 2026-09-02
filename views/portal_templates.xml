@@ -8,7 +8,8 @@
         inherit_id="portal.portal_my_home"
         priority="90"
     >
-        <div id="portal_common_category" position="inside">
+        <div id="portal_common_category" position="after">
+            <div class="o_portal_category row g-2 mt-3" id="portal_loyalty_category">
             <t t-call="portal.portal_docs_entry">
                 <t t-set="icon" t-value="'/aa_loyalty_points/static/src/img/voucher.svg'"/>
                 <t t-set="title">My Points</t>
@@ -16,6 +17,7 @@
                 <t t-set="url" t-value="'/my/loyalty'"/>
                 <t t-set="placeholder_count" t-value="'loyalty_count'"/>
             </t>
+            </div>
         </div>
     </template>
 

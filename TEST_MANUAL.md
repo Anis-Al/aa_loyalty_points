@@ -168,6 +168,9 @@ as one of the 28 customers who already hold a card.
       → The voucher icon renders at the same size as the icons on the Addresses
       and Connection & Security tiles beside it — not oversized, not missing.
       Hard-refresh if you have looked at this page before; the SVG is cached.
+      → The gap above the tile is the **same** as the gap between the other tile
+      groups on the page — it sits in its own row, not crammed under Addresses /
+      Connection & Security.
 
 - [ ] **A-02 Everything on one page.** Open `/my/loyalty`.
       → A total per unit, then **Your cards** (the **full** coupon code in bold —
@@ -197,7 +200,8 @@ as one of the 28 customers who already hold a card.
       **no footer**. Top to bottom: logo + *Récompense de fidélité*, cream
       congratulations card, navy card with the code and the barcode, the points
       card (balance, money value, statement table Date / Description / Programme /
-      Gagnés / Utilisés, *Solde actuel* row), *Validité* / *Besoin d'aide ?*,
+      Gagnés / Utilisés, *Solde actuel* row), *Validité* / *Besoin d'aide ?*
+      (reading "du lundi au vendredi de 8h à 17h, et le samedi de 8h à 14h"),
       thank-you block, navy contact bar.
       → **Everything on one page**, accents correct (*réduction*, not *rÃ©duction*),
       logos and icons visible, sans-serif type.
