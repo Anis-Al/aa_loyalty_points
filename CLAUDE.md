@@ -28,8 +28,9 @@ follow them even with no other context.**
 | E | Coupon report redesigned (own layout, no header/footer) | **done** — 44 tests green |
 | F | Automation rule: discount codes expire 12 months after creation | **done** — 47 tests green |
 | G | Points total on the contact form, coupon button hidden once a coupon is used | **done** — 51 tests green |
+| H | `loyalty` program support, and the setup sheet for moving `mconfort` onto one | **done** — 52 tests green |
 
-Last full run: 2026-09-02 on `mconfort` — **51 tests, 0 failed, 0 errors**.
+Last full run: 2026-09-04 on `mconfort` — **52 tests, 0 failed, 0 errors**.
 
 ### Open — not done yet
 
@@ -85,6 +86,76 @@ email body, which cannot live in a `.po` — see the design note on
 ---
 
 ## Change log
+
+### 2026-09-04 — `loyalty` programs supported, and `mconfort` moves onto one
+
+Client call: the module must work on a **`loyalty`** program, and `mconfort` leaves
+`next_order_coupons` for one. The two types earn points identically; the difference is
+card identity. `next_order_coupons` mints a **new card per order**
+(`sale_loyalty/models/sale_order.py:1376`); `loyalty` is **nominative**, so core looks up
+the partner's existing card and reuses it (`sale_order.py:1362`) — one card, one code, a
+running balance.
+
+**Most of the module already worked.** `BALANCE_PROGRAM_TYPES` has held `'loyalty'` since
+Lot D, and `loyalty` is the fixture type in 4 of the 5 test files
+(`test_portal_loyalty`, `test_refund_points`, `test_sale_order_points`, `test_statement`),
+so Lots A–D were already exercised on it. The audit found two real defects and nothing
+else: the report, the email, the portal and the statement all render a loyalty card
+unchanged, including one with no `expiration_date` — every use is `t-if`'d and the
+report's Validity band already had a `t-else` reading "No expiry date."
+
+**1. The "issued by an earlier order" filter was wrong for a nominative program.**
+Added 2026-09-01, `('order_id', 'not any', [('id', '>=', self.id)])` encodes "a coupon is
+issued by one order and spent on a later one". That only holds for a program that
+`applies_on == 'future'`. A nominative card carries the `order_id` of the **first** order
+that created it and is then reused forever, so the filter hid it on that order — while
+core, for `applies_on == 'both'`, explicitly allows redeeming it there
+(`_get_claimable_rewards` skips a coupon only when `applies_on == 'future'`).
+
+Both the count and the action domain now scope the rule to future-applying programs:
+
+```python
+'|', ('program_id.applies_on', '!=', SPENT_ON_A_LATER_ORDER),
+     ('order_id', 'not any', [('id', '>=', self.id)]),
+```
+
+`_compute_available_coupon_count` takes `program_id` into its `_read_group` groupby and
+collapses a non-future card's source order to `False`, which the existing summing loop
+already counts unconditionally — so the roll-up loop is untouched and it stays **one query
+for the whole recordset**. The N+1 test is unchanged and passes.
+
+The two ordering tests moved onto a real `next_order_coupons` fixture
+(`cls.coupon_program`). Written on 2026-09-01 to pin the live discount-code rule, they
+were built on the `loyalty` program the file already had — i.e. on a nominative program
+where the rule does not apply. They now pin it on the type it was written for, and
+`test_a_nominative_card_is_offered_on_the_order_that_created_it` covers the other side.
+
+**2. The Credit Notes group was invisible on the only program that has cards.**
+`views/loyalty_program_views.xml` gated it on
+`program_type not in ('loyalty', 'gift_card', 'ewallet')` — a copy of
+`BALANCE_PROGRAM_TYPES` as it stood *before* `next_order_coupons` joined the constant on
+2026-08-31. The view was never updated, so `refund_policy` and `allow_negative_points`
+have governed live behaviour on program 2 ever since with **no way to see or change them
+in the UI**. Pre-existing bug, found while auditing the type lists, fixed by adding the
+fourth type.
+
+**That tuple is a hand-kept mirror of `BALANCE_PROGRAM_TYPES`** — a view cannot read a
+Python constant. It has drifted once; check it whenever the constant changes.
+
+**Not changed, deliberately.** `data/loyalty_card_automation.xml` still scopes the
+12-month expiry to `next_order_coupons`. A nominative card is the customer's permanent
+card and must not expire — the same reasoning that kept eWallets out on 2026-09-01. After
+the move below, **no card on `mconfort` expires at all**, which is the intended outcome.
+
+New in `models/loyalty_program.py`: `SPENT_ON_A_LATER_ORDER = 'future'`.
+
+Four files ship for the move itself, none of them in the manifest and none imported, so
+Odoo loads none of them: `loyalty_program_import.xlsx` (the `loyalty.program` import
+file), `loyalty_program_setup.xlsx` (the human-readable reference), and the two
+generators under `tools/`. See "Moving `mconfort` to a `loyalty` program" below.
+
+Manifest `19.0.1.3.0` → `19.0.1.4.0`. `models/` changed, so **the live service needs a
+restart**. Suite: **52 tests, 0 failed, 0 errors.**
 
 ### 2026-09-02 — Saturday hours on the report, tile spacing on `/my`
 
@@ -1195,6 +1266,146 @@ Restart-Service odoo-server-19.0 -Force   # needs elevation
 
 ---
 
+## Moving `mconfort` to a `loyalty` program
+
+Client decision 2026-09-04: program 2 moves to `loyalty`, and **the existing coupon codes
+are discarded rather than carried over**. Done by hand in the UI, not by a script — see
+"Why not a migration script" below.
+
+Two files in the module root, both generated straight from program 2 so nothing is
+transcribed by hand. **Exactly one value differs — Program Type.** Everything else
+carries over: 1 point per €, 0,01 €/point, minimum purchase 1 €, portal visible, unit
+"Point(s) de réduction".
+
+| File | What it is |
+|---|---|
+| `loyalty_program_import.xlsx` | **The one to use.** A `loyalty.program` import file: 27 technical field names on row 1, one data row. Favorites ‣ Import records on the Discount & Loyalty list. |
+| `loyalty_program_setup.xlsx` | Human-readable reference — four tabs (Read me, Program, Conditions, Reward) with the reasoning per field. For entering it by hand, or for reviewing what the import will do. |
+
+The import file carries an `id` column (`loyalty_program_mconfort`), so re-importing
+**updates the same record instead of creating a second one**. Verified through
+`loyalty.program.load()`, the method the import wizard itself calls: 22 of 22 fields come
+back matching program 2, no import messages, and a second load returns the same id.
+
+It creates the rule and the reward in the same row via the `rule_ids/` and `reward_ids/`
+prefixes — safe here only because the program has exactly **one** of each. A second rule
+would need its own row below, with every parent column left blank.
+
+**The import does not clobber the configuration the way an ORM `write` does** (see below):
+`load()` goes through `create()`, and a value supplied in `vals` is protected from
+`_compute_from_program_type`. That is why `applies_on`, `trigger`, `rule_ids` and
+`reward_ids` are all in the file — drop any one of them and the compute fills it with the
+type default.
+
+The imported program keeps the **same name** as the live one, so both appear in the list
+until the old one is archived. Rename in the file first if that is a problem.
+
+Both are regenerated from `tools/mkimport.py` and `tools/mkxlsx.py` — run them against the
+live database if the program ever changes, rather than editing the workbooks by hand.
+`tools/` has no `__init__.py` and nothing imports it, so Odoo never loads either script.
+`mkimport.py` rebuilds the file **and re-runs the 22-field `load()` check**, then rolls
+back.
+
+```bash
+echo "exec(compile(open(r'tools/mkimport.py', encoding='utf-8').read(), 'mkimport.py', 'exec'))" \
+  | odoo-bin shell -c odoo.conf -d mconfort --no-http --log-level=warn
+```
+
+That echo-an-`exec` shape is not decoration. Two traps when piping a script
+into `odoo-bin shell`: PowerShell prepends a BOM (`SyntaxError: invalid non-printable
+character U+FEFF`), and a script containing **non-ASCII** dies from **any** shell with
+`UnicodeEncodeError: 'utf-8' codec can't encode character '\udc9d': surrogates not
+allowed`, because `sys.stdin.read()` mangles it. Echo an
+`exec(open(..., encoding='utf-8').read())` one-liner instead, so only ASCII crosses the
+pipe. The same surrogate hazard corrupted this file once — **never edit CLAUDE.md through
+a shell heredoc**; `pathlib.write_text` truncates the file before it raises.
+
+### The one decision inside the sheet: `applies_on` stays `future`
+
+`is_nominative` is what makes cards accumulate
+(`loyalty/models/loyalty_program.py:251-255`):
+
+```python
+program.is_nominative = program.applies_on == 'both' or \
+    (program.program_type in ('ewallet', 'loyalty') and program.applies_on == 'future')
+```
+
+`loyalty` + `future` is **already nominative**, so cards accumulate — and
+`_get_real_points_for_coupon` (`sale_loyalty/models/sale_order.py:783`) only adds the
+current order's points to the spendable balance when `applies_on != 'future'`. So the
+customer still earns on one order and spends on a later one, exactly as today, with the
+codes merged onto one card. Moving to `both` would let an order discount itself with the
+points it is earning — a business change, not a like-for-like move.
+
+### What it costs
+
+Measured on `mconfort`, 2026-09-04:
+
+| | |
+|---|---|
+| Cards on program 2 | **1050**, every one with a partner |
+| Cards holding a balance | 399, spread over **336** partners |
+| Points not carried over | **311 194,75** = **3 111,95 €** at 0,01 €/point |
+| `loyalty.history` rows | 434 — `card_id` is `ondelete='cascade'` |
+| Cards locked by an order line | **19** — `sale_order_line.coupon_id` is `ondelete='restrict'` |
+| Partners holding 2+ cards with a balance | 48 (max 5) — the fragmentation this fixes |
+
+**Archive the old program, do not delete its cards.** Deleting cascades away the 434
+history rows, and the 19 cards behind confirmed reward lines cannot be deleted at all —
+`unlink()` raises on them, so a full purge is not even achievable. Archiving hides the
+cards from the portal, from `loyalty_points_total` and from the nominative lookup, which
+is the same visible outcome, and it is reversible. Same call the module already makes for
+spent-out coupons on a credit note.
+
+If the balances are ever carried over after all, roll them up **net per partner, not by
+summing positive cards**: one card holds **-1870** (partner 395, ZOUBADOU MARIAME, net
++518,70 across 3 cards), and a `points > 0` filter would hand them 2388,70.
+
+### Why not a migration script
+
+One was written and dry-run, then dropped on the client's call — the UI plus this sheet is
+less machinery for a one-off. Two findings from it are worth keeping, because anyone
+reaching for a script will hit both.
+
+**Writing `program_type` through the ORM destroys the program's configuration.**
+`applies_on`, `trigger`, `portal_visible`, `portal_point_name`, `rule_ids`, `reward_ids`
+and `communication_plan_ids` are all stored computed fields with
+`compute='_compute_from_program_type'` and `readonly=False`, and the compute writes the
+whole default block for the new type. Measured on program 2:
+
+| | before | after a bare `write({'program_type': 'loyalty'})` |
+|---|---|---|
+| `applies_on` | `future` | `both` |
+| rewards | 1 | 2 |
+| `discount_mode` | `per_point` | `percent` |
+| `discount` | 0,01 €/point | 10 |
+| `minimum_amount` | 1,00 | 0,00 |
+
+The 0,01 €/point rate — what 336 customers' balances are denominated in — is gone.
+Passing the fields back in the same `write()` protects them, but `Command.clear()` on
+`reward_ids` does **not** delete the old reward: `loyalty.reward` has an `active` field,
+so reward 5 is archived and a duplicate created beside it — two rows with
+`program_id = 2` in the table, one visible to the ORM.
+
+**A raw `UPDATE loyalty_program SET program_type = 'loyalty'` sidesteps all of it.** Odoo
+marks a stored computed field for recomputation only when its dependency is written
+through the ORM, so nothing recomputes — verified after `flush_all()` that rule 5 and
+reward 5 are byte-identical and `is_nominative` is `True`. That is the route to take if a
+script is ever wanted, **not** an ORM write.
+
+### After the move
+
+- **The Coupons stat button disappears.** Core auto-loads a nominative card into
+  `applied_coupon_ids` once the partner is set (`sale_order.py:1036-1045`), and
+  `_compute_available_coupon_count` returns 0 for an order that already has one. There is
+  no code left to hand over, which is the point.
+- **No card expires.** The Lot F automation rule is scoped to `next_order_coupons` and
+  deliberately stays that way.
+- **`loyalty_points_total` on the contact** finally reads one figure per customer instead
+  of the largest of several fragments.
+
+---
+
 ## Lot D — points on credit notes (done)
 
 Posting a customer credit note now takes loyalty points back, and returns the
@@ -1347,7 +1558,9 @@ with the modified template.
   copy-to-clipboard button, and balance.
 - **Only coupons issued by an older order** (or by no order at all) are offered, in the
   dialog **and** in the count: a code can only be spent on an order created after the one
-  that issued it. "Newer" is by `id`.
+  that issued it. "Newer" is by `id`. **Applies only to a program that
+  `applies_on == 'future'`** — a nominative card carries the `order_id` of the first order
+  that made it and is reused forever, so the rule would hide it there for good.
 - **No button at all once the order has consumed a coupon** — any line carrying a
   `coupon_id`, or anything in `applied_coupon_ids`. The count returns 0, which the
   existing `invisible` already hides.
@@ -1358,11 +1571,13 @@ with the modified template.
   button, same click target, one number. `groups` widened to
   `base.group_system,sales_team.group_sale_salesman`, `invisible` moved onto the points.
 
-### Tests — `tests/test_sale_order_points.py`, 11 tests
+### Tests — `tests/test_sale_order_points.py`, 12 tests
 
 Cover the count (child-partner rollup, expired/empty card exclusion, no card at
 all), the action's domain and `target='new'`, the exclusion of coupons issued by
-this order or by a newer one — asserted on both the count and the domain — and the N+1
+this order or by a newer one — asserted on both the count and the domain, on a real
+`next_order_coupons` fixture, with a companion test proving a **nominative** card is
+still offered on the order that created it — and the N+1
 criterion — asserted as a property rather than an
 absolute number: the query count to read `available_coupon_count` over 80 orders
 must equal the count over 8. Three more cover Lot G: the button disappearing once a

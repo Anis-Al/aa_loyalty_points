@@ -10,7 +10,7 @@
                 <group
                     string="Credit Notes"
                     name="refund_settings"
-                    invisible="program_type not in ('loyalty', 'gift_card', 'ewallet')"
+                    invisible="program_type not in ('loyalty', 'gift_card', 'ewallet', 'next_order_coupons')"
                 >
                     <field name="refund_policy"/>
                     <field name="allow_negative_points" invisible="refund_policy == 'none'"/>

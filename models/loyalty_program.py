@@ -3,6 +3,7 @@
 from odoo import fields, models
 
 BALANCE_PROGRAM_TYPES = ('loyalty', 'gift_card', 'ewallet', 'next_order_coupons')
+SPENT_ON_A_LATER_ORDER = 'future'
 
 
 class LoyaltyProgram(models.Model):

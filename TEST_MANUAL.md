@@ -18,8 +18,8 @@ Restart-Service odoo-server-19.0 -Force
 Use only the `TEST` records created below. **Never post a credit note against a
 real customer order** — it now removes their points for real.
 
-**3. Optional — re-run the automated suite first** (51 tests, all green as of
-2026-09-02). `--http-port` is required: the portal tests need an HTTP daemon and
+**3. Optional — re-run the automated suite first** (52 tests, all green as of
+2026-09-04). `--http-port` is required: the portal tests need an HTTP daemon and
 8069 is held by the live service.
 
 ```powershell

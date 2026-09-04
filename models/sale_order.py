@@ -4,6 +4,8 @@ from collections import defaultdict
 
 from odoo import _, fields, models
 
+from .loyalty_program import SPENT_ON_A_LATER_ORDER
+
 
 class SaleOrder(models.Model):
     _inherit = 'sale.order'
@@ -44,13 +46,18 @@ class SaleOrder(models.Model):
         )
         groups = self.env['loyalty.card']._read_group(
             domain=self._get_available_coupon_domain(all_partners),
-            groupby=['partner_id', 'company_id', 'order_id'],
+            groupby=['partner_id', 'company_id', 'program_id', 'order_id'],
             aggregates=['__count'],
         )
         counts = defaultdict(lambda: defaultdict(int))
-        for partner, company, source_order, count in groups:
+        for partner, company, program, source_order, count in groups:
+            source_id = (
+                source_order.id
+                if program.applies_on == SPENT_ON_A_LATER_ORDER
+                else False
+            )
             while partner:
-                counts[(partner.id, company.id)][source_order.id] += count
+                counts[(partner.id, company.id)][source_id] += count
                 partner = partner.parent_id
 
         for order in self:
@@ -79,7 +86,8 @@ class SaleOrder(models.Model):
             'view_mode': 'list',
             'views': [(self.env.ref('aa_loyalty_points.loyalty_card_view_list_dialog').id, 'list')],
             'domain': self._get_available_coupon_domain(all_partners) + [
-                ('order_id', 'not any', [('id', '>=', self.id)]),
+                '|', ('program_id.applies_on', '!=', SPENT_ON_A_LATER_ORDER),
+                     ('order_id', 'not any', [('id', '>=', self.id)]),
             ],
             'target': 'new',
             'context': {'create': False, 'dialog_size': 'large'},

@@ -34,6 +34,19 @@ class TestSaleOrderPoints(TestSaleCouponCommon):
                 'required_points': 30,
             })],
         })
+        cls.coupon_program = cls.env['loyalty.program'].create({
+            'name': "Coupon for the next order",
+            'program_type': 'next_order_coupons',
+            'trigger': 'auto',
+            'applies_on': 'future',
+            'rule_ids': [Command.create({'minimum_amount': 100, 'minimum_qty': 0})],
+            'reward_ids': [Command.create({
+                'reward_type': 'discount',
+                'discount': 15,
+                'discount_mode': 'percent',
+                'discount_applicability': 'order',
+            })],
+        })
         cls.card = cls.env['loyalty.card'].create({
             'program_id': cls.program.id,
             'partner_id': cls.partner_a.id,
@@ -52,9 +65,9 @@ class TestSaleOrderPoints(TestSaleCouponCommon):
             })],
         })
 
-    def _create_coupon(self, source_order=None, points=30):
+    def _create_coupon(self, source_order=None, points=30, program=None):
         return self.env['loyalty.card'].create({
-            'program_id': self.program.id,
+            'program_id': (program or self.program).id,
             'partner_id': self.partner_a.id,
             'points': points,
             'order_id': source_order and source_order.id,
@@ -129,10 +142,11 @@ class TestSaleOrderPoints(TestSaleCouponCommon):
         older_order = self._create_order()
         order = self._create_order()
         newer_order = self._create_order()
-        from_older = self._create_coupon(source_order=older_order)
-        own = self._create_coupon(source_order=order)
-        from_newer = self._create_coupon(source_order=newer_order)
-        no_source = self._create_coupon()
+        coupons = self.coupon_program
+        from_older = self._create_coupon(source_order=older_order, program=coupons)
+        own = self._create_coupon(source_order=order, program=coupons)
+        from_newer = self._create_coupon(source_order=newer_order, program=coupons)
+        no_source = self._create_coupon(program=coupons)
 
         self.assertEqual(order.available_coupon_count, 2)
 
@@ -146,10 +160,25 @@ class TestSaleOrderPoints(TestSaleCouponCommon):
     def test_a_customer_whose_only_coupons_are_newer_gets_no_button(self):
         self.card.points = 0
         order = self._create_order()
-        self._create_coupon(source_order=order)
-        self._create_coupon(source_order=self._create_order())
+        self._create_coupon(source_order=order, program=self.coupon_program)
+        self._create_coupon(
+            source_order=self._create_order(), program=self.coupon_program
+        )
 
         self.assertEqual(order.available_coupon_count, 0)
+
+    def test_a_nominative_card_is_offered_on_the_order_that_created_it(self):
+        self.card.points = 0
+        order = self._create_order()
+        own = self._create_coupon(source_order=order)
+
+        self.assertEqual(order.available_coupon_count, 1)
+
+        cards = self.env['loyalty.card'].search(
+            order.action_view_available_coupons()['domain']
+        )
+
+        self.assertIn(own, cards)
 
     def test_the_coupon_count_does_not_query_per_order(self):
         self.card.points = 50
