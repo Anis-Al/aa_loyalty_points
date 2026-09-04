@@ -189,6 +189,9 @@
                 <t t-if="o._shows_points_statement()">
                     <t t-set="statement_lines" t-value="o._get_statement_history()"/>
                     <t t-set="money" t-value="o._get_points_money_value()"/>
+                    <t t-set="dense_statement" t-value="len(statement_lines) &gt; 3"/>
+                    <t t-set="statement_font" t-value="'10px' if dense_statement else '13px'"/>
+                    <t t-set="statement_padding" t-value="'4px 8px' if dense_statement else '10px 12px'"/>
                     <div style="background: #fcfdfe; border-radius: 18px; padding: 28px 32px; margin-bottom: 22px;">
                         <table style="width: 100%; border-collapse: collapse;">
                             <tr>
@@ -233,25 +236,25 @@
                                             </td>
                                         </tr>
                                     </table>
-                                    <table t-if="statement_lines" style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                                    <table t-if="statement_lines" t-attf-style="width: 100%; border-collapse: collapse; font-size: {{statement_font}};">
                                         <thead>
                                             <tr style="background: #fdf5ea;">
-                                                <th style="text-align: left; padding: 10px 12px; font-weight: bold;">Date</th>
-                                                <th style="text-align: left; padding: 10px 12px; font-weight: bold;">Description</th>
-                                                <th style="text-align: right; padding: 10px 12px; font-weight: bold;">Earned</th>
-                                                <th style="text-align: right; padding: 10px 12px; font-weight: bold;">Used</th>
+                                                <th t-attf-style="text-align: left; padding: {{statement_padding}}; font-weight: bold;">Date</th>
+                                                <th t-attf-style="text-align: left; padding: {{statement_padding}}; font-weight: bold;">Description</th>
+                                                <th t-attf-style="text-align: right; padding: {{statement_padding}}; font-weight: bold;">Earned</th>
+                                                <th t-attf-style="text-align: right; padding: {{statement_padding}}; font-weight: bold;">Used</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             <tr t-foreach="statement_lines" t-as="line">
-                                                <td style="padding: 10px 12px;">
+                                                <td t-attf-style="padding: {{statement_padding}};">
                                                     <span t-out="line.create_date" t-options='{"widget": "date"}'>2026-01-31</span>
                                                 </td>
-                                                <td style="padding: 10px 12px;"><span t-out="line.description">Order S00001</span></td>
-                                                <td style="padding: 10px 12px; text-align: right;">
+                                                <td t-attf-style="padding: {{statement_padding}};"><span t-out="line.description">Order S00001</span></td>
+                                                <td t-attf-style="padding: {{statement_padding}}; text-align: right;">
                                                     <span t-out="int(line.issued) if line.issued == int(line.issued) else '%.2f' % line.issued">430</span>
                                                 </td>
-                                                <td style="padding: 10px 12px; text-align: right;">
+                                                <td t-attf-style="padding: {{statement_padding}}; text-align: right;">
                                                     <span t-out="int(line.used) if line.used == int(line.used) else '%.2f' % line.used">0</span>
                                                 </td>
                                             </tr>

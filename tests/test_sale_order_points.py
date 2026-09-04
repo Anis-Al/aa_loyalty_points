@@ -73,6 +73,25 @@ class TestSaleOrderPoints(TestSaleCouponCommon):
             'order_id': source_order and source_order.id,
         })
 
+    def _future_loyalty_program(self):
+        return self.env['loyalty.program'].create({
+            'name': "Loyalty, spent on a later order",
+            'program_type': 'loyalty',
+            'trigger': 'auto',
+            'applies_on': 'future',
+            'rule_ids': [Command.create({
+                'reward_point_mode': 'unit',
+                'reward_point_amount': 10,
+                'product_ids': [Command.set(self.product_C.ids)],
+            })],
+            'reward_ids': [Command.create({
+                'reward_type': 'discount',
+                'discount': 0.01,
+                'discount_mode': 'per_point',
+                'discount_applicability': 'order',
+            })],
+        })
+
     def _queries_to_read_counts(self, orders):
         orders.invalidate_recordset(['available_coupon_count'])
         self.env.flush_all()
@@ -194,23 +213,121 @@ class TestSaleOrderPoints(TestSaleCouponCommon):
         )
 
     def test_no_button_when_a_coupon_is_already_used_on_the_order(self):
-        self.card.points = 50
+        self.card.points = 0
+        older_order = self._create_order()
         order = self._create_order()
+        coupon = self._create_coupon(
+            source_order=older_order, program=self.coupon_program
+        )
 
         self.assertEqual(order.available_coupon_count, 1)
 
-        reward = self.program.reward_ids[0]
+        reward = self.coupon_program.reward_ids[0]
         order.write({'order_line': [Command.create({
-            'name': "10% discount",
+            'name': "15% discount",
             'product_id': reward.discount_line_product_id.id,
             'reward_id': reward.id,
-            'coupon_id': self.card.id,
+            'coupon_id': coupon.id,
             'price_unit': -100,
             'tax_ids': False,
         })]})
         order.invalidate_recordset(['available_coupon_count'])
 
         self.assertEqual(order.available_coupon_count, 0)
+
+    def test_a_nominative_card_stays_offered_once_the_order_applied_it(self):
+        self.card.points = 50
+        order = self._create_order()
+        order.write({'applied_coupon_ids': [Command.link(self.card.id)]})
+        order.invalidate_recordset(['available_coupon_count'])
+
+        self.assertEqual(order.available_coupon_count, 1)
+
+    def test_a_card_spent_on_a_later_order_is_offered_on_its_own_order(self):
+        self.card.points = 0
+        program = self.env['loyalty.program'].create({
+            'name': "Loyalty, spent on a later order",
+            'program_type': 'loyalty',
+            'trigger': 'auto',
+            'applies_on': 'future',
+            'rule_ids': [Command.create({'reward_point_mode': 'money'})],
+            'reward_ids': [Command.create({
+                'reward_type': 'discount',
+                'discount': 0.01,
+                'discount_mode': 'per_point',
+                'discount_applicability': 'order',
+            })],
+        })
+        order = self._create_order()
+        own = self._create_coupon(source_order=order, program=program)
+
+        self.assertEqual(order.available_coupon_count, 1)
+
+        cards = self.env['loyalty.card'].search(
+            order.action_view_available_coupons()['domain']
+        )
+
+        self.assertIn(own, cards)
+
+    # === POINTS EARNED ON THE ORDER === #
+
+    def test_points_earned_on_the_order_cannot_be_spent_on_it(self):
+        program = self._future_loyalty_program()
+        order = self._create_order()
+        order.action_confirm()
+        card = program.coupon_ids.filtered(lambda c: c.partner_id == self.partner_a)
+
+        self.assertEqual(card.points, 100)
+        self.assertEqual(order._get_real_points_for_coupon(card), 0)
+
+        card.points += 500
+
+        self.assertEqual(order._get_real_points_for_coupon(card), 500)
+
+    def test_no_button_when_the_only_points_came_from_this_order(self):
+        program = self._future_loyalty_program()
+        order = self._create_order()
+        order.action_confirm()
+        self.card.points = 0
+        card = program.coupon_ids.filtered(lambda c: c.partner_id == self.partner_a)
+
+        self.assertEqual(card.points, 100)
+        self.assertEqual(order.available_coupon_count, 0)
+        self.assertFalse(
+            self.env['loyalty.card'].search(
+                order.action_view_available_coupons()['domain']
+            )
+        )
+
+        card.points += 500
+        order.invalidate_recordset(['available_coupon_count'])
+
+        self.assertEqual(order.available_coupon_count, 1)
+        self.assertEqual(
+            self.env['loyalty.card'].search(
+                order.action_view_available_coupons()['domain']
+            ),
+            card,
+        )
+
+    def test_a_current_and_future_program_may_spend_its_own_points(self):
+        order = self._create_order()
+        order.action_confirm()
+
+        self.assertEqual(self.card.points, 100)
+        self.assertEqual(order._get_real_points_for_coupon(self.card), 100)
+
+    def test_a_quotation_is_left_to_core(self):
+        program = self._future_loyalty_program()
+        card = self.env['loyalty.card'].create({
+            'program_id': program.id,
+            'partner_id': self.partner_a.id,
+            'points': 500,
+        })
+        order = self._create_order()
+
+        self.assertEqual(order.state, 'draft')
+        self.assertEqual(order._get_real_points_for_coupon(card), 500)
 
     def test_the_partner_totals_the_points_left_to_use(self):
         self.card.points = 50

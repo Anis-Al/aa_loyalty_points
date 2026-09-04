@@ -76,6 +76,17 @@ class TestPointsStatement(TestSaleCouponCommon):
             self.assertIn(f"Movement {index}", html)
         self.assertNotIn("Showing the last", html)
 
+    def test_a_long_statement_is_printed_denser(self):
+        self._add_history(3)
+
+        self.assertIn("padding: 10px 12px", self._render_report(self.card))
+
+        self._add_history(1)
+        report = self._render_report(self.card)
+
+        self.assertIn("padding: 4px 8px", report)
+        self.assertNotIn("padding: 10px 12px", report)
+
     def test_report_truncates_to_the_configured_limit(self):
         self.env['ir.config_parameter'].sudo().set_param(
             'aa_loyalty_points.statement_max_lines', '5'

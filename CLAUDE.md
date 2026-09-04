@@ -29,8 +29,9 @@ follow them even with no other context.**
 | F | Automation rule: discount codes expire 12 months after creation | **done** — 47 tests green |
 | G | Points total on the contact form, coupon button hidden once a coupon is used | **done** — 51 tests green |
 | H | `loyalty` program support, and the setup sheet for moving `mconfort` onto one | **done** — 52 tests green |
+| I | Loyalty cards expire too, and the coupon button survives a nominative card | **done** — 55 tests green |
 
-Last full run: 2026-09-04 on `mconfort` — **52 tests, 0 failed, 0 errors**.
+Last full run: 2026-09-04 on `mconfort` — **60 tests, 0 failed, 0 errors**.
 
 ### Open — not done yet
 
@@ -86,6 +87,276 @@ email body, which cannot live in a `.po` — see the design note on
 ---
 
 ## Change log
+
+### 2026-09-04 — the Coupons button offers only what the order can actually spend
+
+Client call, straight after the entry below: if the code in the button cannot be used on
+this order, do not show the button. The count, the dialog and the redemption rule now
+answer **one** question — *is this card spendable on this order?* — through one method.
+
+`_compute_available_coupon_count` and `action_view_available_coupons` both delegate to a
+new `_get_available_coupons()`, returning `{order.id: loyalty.card recordset}`, and the
+per-card verdict lives in `_is_coupon_spendable`:
+
+```python
+def _is_coupon_spendable(self, card):
+    self.ensure_one()
+    program = card.program_id
+    if program.applies_on == SPENT_ON_A_LATER_ORDER and not program.is_nominative:
+        current_id = self.id if isinstance(self.id, int) else float('inf')
+        if card.order_id and card.order_id.id >= current_id:
+            return False
+    return self._get_real_points_for_coupon(card) > 0
+```
+
+**Three rules collapse into that one call.** `_get_real_points_for_coupon` already knows
+about the points this order granted (the entry below), about points a reward line on this
+quotation has already consumed, and about the raw balance. So a card whose only points
+came from this order now reads 0 and drops out on its own — no separate test for it. What
+survives as an explicit clause is only the "issued by a newer order" rule, which is about
+identity rather than about points.
+
+**The dialog's domain is now `[('id', 'in', ...)]`.** The count and the list it opens are
+the same recordset by construction, so they can no longer disagree — the failure mode of
+2026-09-01 (S03294 showing 3 over an empty dialog) is now unrepresentable rather than
+merely fixed. It also deletes the hand-written domain that mirrored the Python rule, and
+with it `NOMINATIVE_PROGRAM_TYPES`, added earlier the same day and now unused: the domain
+no longer needs a searchable stand-in for `is_nominative` because nothing is expressed as
+a domain any more.
+
+**Still one query for the whole recordset.** The `_read_group` became a plain `search` —
+the verdict is per card, so aggregated counts could not express it — plus the `child_of`
+resolution, and Odoo's prefetch covers `coupon_point_ids` and `order_line` across the
+recordset. The N+1 test is unchanged and passes. Python cost stays small because each
+order only scans **its own partner's** cards, not all of them.
+
+Verified on `mconfort-loyalty`, card 2906 at 1833,5:
+
+| | button | dialog rows |
+|---|---|---|
+| S10076 (granted 5720) | 0 | 0 |
+| S10077 (granted 3950) | 0 | 0 |
+| S10207 (granted 1161, so 672,5 left) | 1 | 1 |
+| fresh quotation, same customer | 1 | 1 |
+
+`test_no_button_when_the_only_points_came_from_this_order` pins both directions — hidden
+when the card holds only this order's points, shown again once 500 is carried over — and
+asserts count and dialog agree.
+
+Manifest `19.0.1.6.0` → `19.0.1.7.0`. `models/` changed, **restart needed**. Suite:
+**60 tests, 0 failed, 0 errors.**
+
+### 2026-09-04 — a `future` program no longer spends its own points after confirmation
+
+Client call, after the finding recorded under "The one decision inside the sheet":
+`applies_on = future` stops being enforced the moment the order is confirmed, so an order
+can discount itself with the points it just earned. Measured on `mconfort-loyalty`:
+**S10207** issued 1161 points at 11:11:56 and its reward line spent exactly 1161 at
+11:12:17. **S10077** did the same.
+
+One override in `models/sale_order.py`, completing core's own rule rather than adding a
+setting:
+
+```python
+def _get_real_points_for_coupon(self, coupon, post_confirm=False):
+    points = super()._get_real_points_for_coupon(coupon, post_confirm=post_confirm)
+    if (
+        self.state in ('sale', 'done')
+        and coupon.program_id.applies_on == SPENT_ON_A_LATER_ORDER
+    ):
+        points -= sum(
+            self.coupon_point_ids.filtered(lambda p: p.coupon_id == coupon).mapped('points')
+        )
+        points = coupon.currency_id.round(points)
+    return points
+```
+
+**Why this hook and not a constraint.** Three cuts were considered:
+
+1. A `@api.constrains` on the reward line. Rejected: it fires after the line is built, so
+   the error arrives late and the wording cannot say which points are at fault.
+2. An override of `_apply_program_reward` returning core's own
+   "can only be claimed on future orders" error, which core already raises but exempts
+   nominative programs from (`sale_loyalty/models/sale_order.py:953`). Rejected on two
+   counts: it blocks the card **entirely** on any order that earned points — on a
+   nominative program that is nearly every order, so the customer could never redeem a
+   carried-over balance — and it only gates *claimability*, while a `per_point` reward
+   sizes its discount from `_get_real_points_for_coupon` (`sale_order.py:574`), so a
+   customer with 1 point of prior balance would still have spent the whole earned amount.
+3. **What shipped:** remove the order's own contribution from the spendable figure. Every
+   path that matters reads that one method — the claimability check (`:955`), the
+   per-point discount ceiling (`:574`), `_get_claimable_rewards` (`:988`) and
+   `_update_programs_and_rewards` (`:1174`) — so the rule holds for the amount as well as
+   for the right to claim.
+
+**Gated on `applies_on`, not on a new field.** `future` already means "spent on a later
+order"; core simply stops consulting it once `state` leaves the quotation states, because
+`_add_points_for_coupon` has by then written the points onto the card and
+`points = coupon.points` carries them. The override restores the intent. A program set to
+`both` — "Current & Future orders" — turns the rule off by itself, which is correct: that
+value means the opposite.
+
+**Carried-over balance is untouched.** Only this order's own grant is removed. Verified on
+`mconfort-loyalty`: the three confirmed orders now report a negative spendable figure
+(S10076 −5719,5 / S10077 −3949,5 / S10207 −1160,5, card 2906 holding 0,5) while a fresh
+quotation for the same customer still reads the real 0,5.
+
+**Those negatives are the point, and they have a consequence.** An order that already
+overspent under the old behaviour now evaluates as invalid. Nothing changes while it is
+left alone, but `_update_programs_and_rewards` drops a reward whose points no longer cover
+`required_points` (`:1174`), and `action_confirm` raises
+*"One or more rewards on the sale order is invalid"* (`:153`) — so **editing or
+re-confirming one of those orders will strip its discount line**. Deliberately not
+clamped to zero: clamping would hide real over-redemption. The three orders concerned are
+the client's own test orders on `mconfort-loyalty`; `mconfort` has no `loyalty` program
+yet.
+
+**No new message.** A blocked attempt gets core's *"The coupon does not have enough points
+for the selected reward."* — accurate, since under the rule the points genuinely are not
+available, and it needs no new translation. Add a dedicated error in
+`_apply_program_reward` if that reads as too vague on the shop floor.
+
+Three tests in `tests/test_sale_order_points.py`: a confirmed `future` order sees 0 of the
+100 it earned and exactly the 500 it carried over, a `both` program still spends its own
+points, and a quotation is left to core untouched.
+
+Manifest `19.0.1.5.1` → `19.0.1.6.0`. `models/` changed, so **the live service needs a
+restart**. Suite: **59 tests, 0 failed, 0 errors.**
+
+### 2026-09-04 — the statement table gets denser past 3 movements
+
+Client call: when **Détail de vos points** runs to more than 3 rows, that section
+prints smaller. Three `t-set`s at the top of the block and `t-attf-style` on the table,
+its 4 `<th>` and its 4 `<td>`:
+
+```xml
+<t t-set="dense_statement" t-value="len(statement_lines) &gt; 3"/>
+<t t-set="statement_font" t-value="'10px' if dense_statement else '13px'"/>
+<t t-set="statement_padding" t-value="'4px 8px' if dense_statement else '10px 12px'"/>
+```
+
+**Only the statement table changes.** The balance column beside it, the two section
+headings and the *Solde actuel* row keep their sizes — shrinking the left half of the
+card because the right half is long would look like a rendering fault.
+
+**Inline `t-attf-style`, not a CSS class.** wkhtmltopdf 0.12.6 renders the inline
+`style` attributes this report is built from, and an inline rule beats a stylesheet
+rule; a `.dense` class would have needed `!important`, which this report has already
+been burned by once (see the border note of 2026-09-01 — `!important` there would have
+killed the dividers).
+
+Threshold counts `statement_lines`, the rows actually printed, not `history_ids` — a
+card capped at 3 by `aa_loyalty_points.statement_max_lines` prints 3 rows and stays at
+the normal size, which is what the reader sees.
+
+No new translatable term: only style attributes changed, so `i18n/fr.po` is untouched
+and a plain `-u` deploys it.
+
+`test_a_long_statement_is_printed_denser` pins both branches, asserting on the padding
+values — `font-size: 13px` also appears in the thank-you block, so it does not
+discriminate. Manifest `19.0.1.5.0` → `19.0.1.5.1`. Views and tests only, **no service
+restart**. Deployed to `mconfort` and `mconfort-loyalty`. Suite: **56 tests, 0 failed,
+0 errors.**
+
+### 2026-09-04 — Lot I, loyalty cards expire, and the coupon button survives them
+
+Two client calls, both about the `loyalty` program `mconfort` is moving onto.
+
+**1. The 12-month expiry now covers `loyalty` too.** `data/loyalty_card_automation.xml`
+went from `("program_id.program_type", "=", "next_order_coupons")` to
+`("program_id.program_type", "in", ["next_order_coupons", "loyalty"])`.
+
+This **reverses the decision taken twice before** — Lot F on 2026-09-01 and the entry
+below on 2026-09-04, both of which kept nominative cards out on the grounds that a
+customer's permanent card must not expire. The client was shown the consequence and
+reaffirmed. Understand what it now does:
+
+- A nominative program mints **one card per customer**, reused forever. Its expiry is
+  therefore an expiry on the customer's whole **running balance**, not on a stray
+  coupon. On that date the card leaves the portal, `loyalty_points_total`, the Coupons
+  button and core's own nominative lookup — which then mints a **fresh empty card**.
+- **eWallets stay out.** An eWallet is the customer's own money.
+- **No backfill, still.** The domain keeps `("expiration_date", "=", False)` and the
+  rule is `on_create`, so the 1050 existing cards are untouched. Behaviour therefore
+  splits old vs new until someone decides otherwise.
+
+If the intent was ever "points expire" rather than "the card expires", the Odoo lever is
+the program's own rule/reward validity, not `loyalty.card.expiration_date`. Not raised
+again.
+
+**2. The Coupons stat button must show the code whenever there is one.** After the move
+it never appeared at all, for two independent reasons, both ours, both now scoped to
+**non-nominative** cards.
+
+**a. `applied_coupon_ids` is not consumption on a nominative program.** Lot G
+(2026-09-02) hid the button once the order carried a `coupon_id` line or anything in
+`applied_coupon_ids`. But core **auto-loads** the customer's nominative card into
+`applied_coupon_ids` the moment the partner is set
+(`sale_loyalty/models/sale_order.py:1035-1045`), so on a `loyalty` program that clause
+fired on **every order, always**. The suppression now ignores nominative cards:
+
+```python
+used = order.order_line.coupon_id | order.applied_coupon_ids
+if used.filtered(lambda card: not card.program_id.is_nominative):
+    continue
+```
+
+Lot G's actual case — a `next_order_coupons` code spent on the order — is unchanged, and
+the 20 live orders carrying one still show no button.
+
+**b. `applies_on != 'future'` was the wrong discriminator.** The entry below fixed the
+"issued by an earlier order" filter for nominative programs by exempting
+`applies_on != SPENT_ON_A_LATER_ORDER`. **That does not cover the configuration
+`mconfort` is actually moving to.** `loyalty_program_import.xlsx` ships
+`applies_on = future` on purpose (see "The one decision inside the sheet"), and
+`loyalty` + `future` **is** nominative
+(`loyalty/models/loyalty_program.py:252-255`) — so the exemption missed it and the
+card was still hidden on the order that created it. It passed review only because the
+test fixture `cls.program` is `loyalty` + `applies_on = 'both'`, which the old test
+`test_a_nominative_card_is_offered_on_the_order_that_created_it` exercises.
+
+The rule is now "future-applying **and not nominative**", in both places, and the two
+are provably the same test:
+
+```python
+source_id = (
+    source_order.id
+    if program.applies_on == SPENT_ON_A_LATER_ORDER and not program.is_nominative
+    else False
+)
+```
+
+```python
+'|', ('program_id.applies_on', '!=', SPENT_ON_A_LATER_ORDER),
+'|', ('program_id.program_type', 'in', NOMINATIVE_PROGRAM_TYPES),
+     ('order_id', 'not any', [('id', '>=', self.id)]),
+```
+
+The domain cannot read `is_nominative` — it is a non-stored compute, not searchable. It
+does not need to: the first branch already absorbs `applies_on == 'both'`, so inside the
+remaining space `applies_on` **is** `future`, where `is_nominative` reduces to exactly
+`program_type in ('ewallet', 'loyalty')`. Count and dialog therefore still agree row for
+row, which is the invariant the 2026-09-01 entry was written to protect.
+
+New in `models/loyalty_program.py`: `NOMINATIVE_PROGRAM_TYPES = ('ewallet', 'loyalty')`
+— the searchable half of core's `_compute_is_nominative`, and, like the tuple in
+`views/loyalty_program_views.xml`, **a hand-kept mirror of a core expression**. Check it
+if core's definition changes.
+
+Three tests. `test_no_button_when_a_coupon_is_already_used_on_the_order` **moved onto a
+`next_order_coupons` fixture** — it was written for the discount-code case but built on
+`cls.card`, which is nominative, so it was pinning the wrong behaviour and would now
+fail. `test_a_nominative_card_stays_offered_once_the_order_applied_it` covers (a),
+`test_a_card_spent_on_a_later_order_is_offered_on_its_own_order` covers (b) on a real
+`loyalty` + `future` program, and `test_a_loyalty_card_expires_twelve_months_after_creation`
+covers the rule change.
+
+Manifest `19.0.1.4.0` → `19.0.1.5.0`. Deployed to **`mconfort`** and **`mconfort-loyalty`**
+with `-u aa_loyalty_points --i18n-overwrite`; suite green on both. `models/` changed, so
+**the live service needs a restart** — `Restart-Service` was refused here for lack of
+elevation, so until someone runs it from an elevated shell the running process still has
+the old `_compute_available_coupon_count` and keeps hiding the button. The automation rule
+is data and is already live. Suite: **55 tests, 0 failed, 0 errors.**
 
 ### 2026-09-04 — `loyalty` programs supported, and `mconfort` moves onto one
 
@@ -146,6 +417,10 @@ Python constant. It has drifted once; check it whenever the constant changes.
 12-month expiry to `next_order_coupons`. A nominative card is the customer's permanent
 card and must not expire — the same reasoning that kept eWallets out on 2026-09-01. After
 the move below, **no card on `mconfort` expires at all**, which is the intended outcome.
+
+> **Superseded the same day** — the client asked for `loyalty` to expire too, and the
+> `applies_on != 'future'` fix above turned out to miss the very configuration
+> `mconfort` is moving to. See the Lot I entry at the top.
 
 New in `models/loyalty_program.py`: `SPENT_ON_A_LATER_ORDER = 'future'`.
 
@@ -679,8 +954,9 @@ Two traps worth remembering:
   touches `active_id` — is safe on a batch create. A `state = 'code'` action was not
   needed.
 
-`tests/test_card_expiry.py`, 3 tests: a discount card gets `create_date + 12 months`,
-an eWallet card gets nothing, an explicitly supplied date is kept.
+`tests/test_card_expiry.py`, 4 tests: a discount card gets `create_date + 12 months`,
+a loyalty card gets the same (added 2026-09-04, Lot I), an eWallet card gets nothing, an
+explicitly supplied date is kept.
 
 Data and tests only — **no service restart needed**. `base.automation` re-registers its
 hooks when the registry reloads, which registry signalling already triggers.
@@ -1226,6 +1502,11 @@ Two ERROR lines appear on every `mconfort` run and are **not ours**:
 ### Install state
 
 - `mconfort` — **installed 2026-08-31**, working database, suite runs here.
+- `mconfort-loyalty` — **updated to 19.0.1.5.0 on 2026-09-04**, suite green there too
+  (55 tests). A copy of `mconfort` with the loyalty move already applied: program 2
+  archived with its 1050 cards, new program **1615** `loyalty` / `applies_on = future`
+  active. That is the configuration Lot I was written against, so it is the right place
+  to check the Coupons button and the card expiry on real data.
 - `dev` — installed 2026-08-31. **The suite cannot run there:**
   `ProductCommon.setUpClass` archives every pricelist, and `dev` has an active
   program pinned to one (id 2, "Code de remise", `promo_code`), so setUpClass
@@ -1337,6 +1618,37 @@ customer still earns on one order and spends on a later one, exactly as today, w
 codes merged onto one card. Moving to `both` would let an order discount itself with the
 points it is earning — a business change, not a like-for-like move.
 
+> **Correction, 2026-09-04 — `future` does not actually prevent that.** Read the guard
+> above it:
+>
+> ```python
+> points = coupon.points
+> if self.state not in ('sale', 'done'):
+>     if coupon.program_id.applies_on != 'future':
+>         points += self.coupon_point_ids.filtered(lambda p: p.coupon_id == coupon).points
+> ```
+>
+> `applies_on` is consulted **only while the order is a quotation**. On confirmation
+> `_add_points_for_coupon` writes the points onto the card, so from then on
+> `points = coupon.points` already includes what this order granted, and the reward can
+> be added to that same order.
+>
+> Measured on `mconfort-loyalty`, program 1615, `applies_on = future`: **S10207**
+> (order 10206) was confirmed at 11:11:56 issuing 1161 points and its reward line was
+> created at 11:12:17 spending exactly 1161 — the order discounted itself. **S10077**
+> (order 10076) did the same with 5720 carried over plus 3950 of its own, 9670 in total.
+> Card 2906 sits at 0.
+>
+> So the real difference is only **when**: `both` allows it on the quotation, `future`
+> defers it until the order is confirmed. Neither enforces "points can never be spent on
+> the order that earned them" — no core setting does.
+>
+> **This module now does**, on the client's call the same day: `_get_real_points_for_coupon`
+> is overridden to remove the order's own contribution once it is confirmed, so `future`
+> means what it says at every stage. See the change-log entry at the top. The paragraph
+> above therefore holds again as originally written — `both` is what allows an order to
+> discount itself with the points it is earning.
+
 ### What it costs
 
 Measured on `mconfort`, 2026-09-04:
@@ -1395,12 +1707,14 @@ script is ever wanted, **not** an ORM write.
 
 ### After the move
 
-- **The Coupons stat button disappears.** Core auto-loads a nominative card into
-  `applied_coupon_ids` once the partner is set (`sale_order.py:1036-1045`), and
-  `_compute_available_coupon_count` returns 0 for an order that already has one. There is
-  no code left to hand over, which is the point.
-- **No card expires.** The Lot F automation rule is scoped to `next_order_coupons` and
-  deliberately stays that way.
+- **The Coupons stat button keeps working.** Core auto-loads a nominative card into
+  `applied_coupon_ids` once the partner is set (`sale_order.py:1035-1045`), which used to
+  make `_compute_available_coupon_count` return 0 and hide the button on every order.
+  Since Lot I that clause ignores nominative cards, so the button shows the customer's
+  card and its code, on that order and on every later one.
+- **Loyalty cards expire 12 months after creation**, like discount codes — Lot I widened
+  the automation rule. On a nominative program that is an expiry on the customer's
+  running balance, not on a stray coupon. eWallets still never expire.
 - **`loyalty_points_total` on the contact** finally reads one figure per customer instead
   of the largest of several fragments.
 
@@ -1520,7 +1834,7 @@ that and will fail if the stock wording comes back.
 PRD §C2 wants `{{ object._get_mail_author().email_formatted }}`, but changing it
 would change the sender on coupon emails too. Not done, no decision taken.
 
-### Tests — `tests/test_statement.py`, 8 tests
+### Tests — `tests/test_statement.py`, 9 tests
 
 Covers PRD §C3. Rendering is checked with `_render_qweb_html` rather than
 `_render_qweb_pdf` so the suite does not depend on wkhtmltopdf being installed.
@@ -1556,14 +1870,19 @@ with the modified template.
 - **Clicking it opens a dialog**, not a full list view: `target='new'`,
   `dialog_size='large'`, its own read-only list of **two columns** — code with a
   copy-to-clipboard button, and balance.
-- **Only coupons issued by an older order** (or by no order at all) are offered, in the
-  dialog **and** in the count: a code can only be spent on an order created after the one
-  that issued it. "Newer" is by `id`. **Applies only to a program that
-  `applies_on == 'future'`** — a nominative card carries the `order_id` of the first order
-  that made it and is reused forever, so the rule would hide it there for good.
-- **No button at all once the order has consumed a coupon** — any line carrying a
-  `coupon_id`, or anything in `applied_coupon_ids`. The count returns 0, which the
-  existing `invisible` already hides.
+- **Only a card the order can actually spend** is offered. The count and the dialog are
+  the same recordset, produced by `_get_available_coupons()`; a card whose usable balance
+  on this order is zero — including one holding nothing but the points this very order
+  earned — is not shown at all.
+- **Only coupons issued by an older order** (or by no order at all) are offered: a code
+  can only be spent on an order created after the one that issued it. "Newer" is by `id`.
+  **Applies only to a program that is future-applying and not nominative** — a nominative
+  card carries the `order_id` of the first order that made it and is reused forever, so
+  the rule would hide it there for good.
+- **No button at all once the order has consumed a *non-nominative* coupon** — any line
+  carrying a `coupon_id`, or anything in `applied_coupon_ids`. The count returns 0, which
+  the existing `invisible` already hides. A nominative card is never consumption: core
+  loads it into `applied_coupon_ids` by itself, and the code must stay readable.
 - **No points block under the totals.** Removed 2026-08-31 — `sale_loyalty`
   already prints the same figures there. See the change log.
 - **Contact form**: core's **Loyalty Cards** stat button now reads
@@ -1571,7 +1890,7 @@ with the modified template.
   button, same click target, one number. `groups` widened to
   `base.group_system,sales_team.group_sale_salesman`, `invisible` moved onto the points.
 
-### Tests — `tests/test_sale_order_points.py`, 12 tests
+### Tests — `tests/test_sale_order_points.py`, 18 tests
 
 Cover the count (child-partner rollup, expired/empty card exclusion, no card at
 all), the action's domain and `target='new'`, the exclusion of coupons issued by
@@ -1581,8 +1900,11 @@ still offered on the order that created it — and the N+1
 criterion — asserted as a property rather than an
 absolute number: the query count to read `available_coupon_count` over 80 orders
 must equal the count over 8. Three more cover Lot G: the button disappearing once a
-reward line carries a `coupon_id`, and `loyalty_points_total` summing only the usable
-cards (zero when there are none).
+reward line carries a `coupon_id` **on a `next_order_coupons` card**, and
+`loyalty_points_total` summing only the usable cards (zero when there are none). Two
+cover Lot I: a nominative card still counted after core loads it into
+`applied_coupon_ids`, and a `loyalty` + `applies_on = future` card — the live `mconfort`
+configuration — offered on the order that created it.
 
 ## Lot A — portal (done)
 
@@ -1704,6 +2026,31 @@ Rounded in the customer's favour on both sides: `taken` DOWN so we never take ba
 more than owed, `given` UP so we never give back less than owed. PRD §10
 decision 2.
 
+## `models/sale_order.py` — `_get_real_points_for_coupon`
+
+Removes the points **this** order granted to the card from the figure the redemption flow
+reads, once the order is confirmed and the program is `applies_on = 'future'`.
+
+Core only applies that rule while the order is a quotation: on confirmation
+`_add_points_for_coupon` writes the points onto the card, and from then on
+`points = coupon.points` already includes them, so the same order can spend what it just
+earned. The override finishes the job the setting starts. It is deliberately keyed on
+`applies_on` and not on a field of ours — a program set to `both` means "Current & Future
+orders" and must keep the old behaviour.
+
+Everything downstream reads this one method — claimability (`sale_order.py:955`), the
+per-point discount ceiling (`:574`), `_get_claimable_rewards` (`:988`) and
+`_update_programs_and_rewards` (`:1174`) — which is why the rule lives here rather than in
+a constraint or in `_apply_program_reward`: those gate the *right to claim* but not the
+*amount*, and a `per_point` reward is all amount.
+
+The result goes **negative** on an order that already overspent under the old behaviour,
+and that is intended — clamping to zero would hide real over-redemption. Know what it
+costs: such an order loses its reward line the next time
+`_update_programs_and_rewards` runs, and refuses to re-confirm.
+
+Carried-over balance is never touched; only this order's own grant is subtracted.
+
 ## `models/sale_order.py` — why `_action_cancel` is overridden
 
 `sale_loyalty` only purges history lines whose `order_model` is `'sale.order'`,
@@ -1778,6 +2125,14 @@ once the header is gone. Its `margin_bottom = 14` reserves the band the contact
 bar prints in: the bar is a real `div.footer`, so wkhtmltopdf draws it flush to the
 bottom page edge without any CSS pinning it.
 
+The statement table prints **denser past 3 rows** — `dense_statement`,
+`statement_font` and `statement_padding`, set at the top of the block and applied with
+`t-attf-style`. Inline rather than a CSS class because an inline `style` beats a
+stylesheet rule and a class would have needed `!important`, which this report cannot
+afford (see the border note below). The threshold counts the rows actually printed,
+so a card capped by `aa_loyalty_points.statement_max_lines` is judged on what the
+reader sees. Nothing outside that table resizes.
+
 The one-line `<style>` block at the top of the body is not cosmetic. Bootstrap 5's
 reboot sets `border-style: solid; border-width: 0` on every table element, and
 wkhtmltopdf paints that zero-width border as a hairline — an outline around every
@@ -1845,11 +2200,18 @@ record.create_date.date() + dateutil.relativedelta.relativedelta(months=12)
 against a record after the fact; on `on_create` the two are the same value.
 
 The domain does the whole job of scoping, and each clause is load-bearing.
-`("program_id.program_type", "=", "next_order_coupons")` keeps eWallets and loyalty
-cards out — those are the customer's own persistent instrument and must not expire —
-and traverses the relation rather than naming program id 2, so it holds on any
-database. `("expiration_date", "=", False)` is what stops the rule from overwriting the
+`("program_id.program_type", "in", ["next_order_coupons", "loyalty"])` traverses the
+relation rather than naming program ids, so it holds on any database.
+`("expiration_date", "=", False)` is what stops the rule from overwriting the
 `valid_until` that `loyalty.generate.wizard` writes on a manual generation.
+
+`loyalty` joined that list on 2026-09-04 (Lot I), on the client's instruction and against
+the reasoning that had kept it out twice. **eWallets stay out** — an eWallet is the
+customer's own money. Be clear about what the addition means: a `loyalty` program is
+nominative, so its one card per customer *is* the running balance, and the expiry retires
+that balance rather than a stray coupon. The rule is still `on_create` with
+`expiration_date = False`, so nothing is backfilled and cards predating the change never
+expire.
 
 **Do not write `trigger` on this record without also writing `filter_domain`.**
 `filter_domain` is stored-computed with `trigger` in its `@api.depends`, and
@@ -2008,17 +2370,40 @@ button has room for one number, and the client asked for the total. Integer, so 
 currency-denominated eWallet balance would lose its cents. Both are fine while every
 card on `mconfort` is on one program with one unit; split per unit if that changes.
 
-## `models/sale_order.py` — the coupon count is one query
+## `models/sale_order.py` — `_get_available_coupons` and `_is_coupon_spendable`
 
-`_compute_available_coupon_count` resolves `child_of` once for the whole recordset
-and issues a single `_read_group` on `loyalty.card` grouped by `partner_id` **and**
-`company_id`. Grouping by company too is what lets one query serve a mixed-company
-recordset without attributing another company's cards to an order. Counts are then
-rolled up the partner tree, mirroring `res_partner._compute_count_active_cards`.
+**One method answers for the button and for the dialog.** `_get_available_coupons()`
+returns `{order.id: loyalty.card recordset}`; `_compute_available_coupon_count` takes its
+`len`, and `action_view_available_coupons` passes its `ids` as `[('id', 'in', ...)]`. The
+two therefore cannot disagree — the 2026-09-01 failure (a button reading 3 over an empty
+dialog) is unrepresentable, not merely fixed. It also means no domain restates the Python
+rule, which is why there is no searchable stand-in for `is_nominative` any more.
 
-An order that has already consumed a coupon is skipped and stays at 0, which hides the
-button: a line with a `coupon_id`, or anything in `applied_coupon_ids`. Both are checked
-because the second covers a code entered before its reward line exists.
+It resolves `child_of` once for the whole recordset and issues a single `search` on
+`loyalty.card`, then buckets the result by `(partner, company)`, rolled up the partner
+tree the way `res_partner._compute_count_active_cards` does. Keying on company too is what
+lets one query serve a mixed-company recordset without lending one company's cards to
+another's order. A `_read_group` no longer works here: the verdict is per card, so an
+aggregated count cannot express it. Prefetch keeps `coupon_point_ids` and `order_line` to
+one query each across the recordset, so the N+1 property holds, and each order only scans
+its own partner's bucket.
+
+`_is_coupon_spendable` is the verdict, and it is mostly a call to
+`_get_real_points_for_coupon` — which already accounts for the raw balance, for points a
+reward line on this quotation has consumed, and (through our own override) for the points
+**this** order granted. So "the card only holds what this order just earned" needs no
+clause of its own: the figure comes back 0 and the card drops out. The one explicit rule
+left is "issued by a newer order", which is about identity rather than points, and applies
+only to a program that is future-applying **and not nominative**.
+
+An order that has already consumed a coupon is skipped entirely and stays at 0, which
+hides the button: a line with a `coupon_id`, or anything in `applied_coupon_ids`. Both are
+checked because the second covers a code entered before its reward line exists.
+
+**Nominative cards are excluded from that test.** `applied_coupon_ids` is not a record of
+consumption on a nominative program — core puts the customer's card there itself as soon
+as the partner is set (`sale_loyalty/models/sale_order.py:1035-1045`) — so treating it as
+one hid the button on every order of a `loyalty` program.
 
 `compute_sudo=True` is kept for safety, though it turns out not to be strictly
 required: `sale_loyalty/security/ir.model.access.csv` grants

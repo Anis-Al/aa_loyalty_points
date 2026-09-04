@@ -2,7 +2,7 @@
 
 {
     'name': "Loyalty Points Extension",
-    'version': '19.0.1.4.0',
+    'version': '19.0.1.7.0',
     'category': 'Sales/Sales',
     'summary': "Points recovered on credit notes, and a points statement on the card report and email",
     'author': "Anis Alim",

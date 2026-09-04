@@ -6,7 +6,7 @@
         <field name="name">Discount code: expires 12 months after creation</field>
         <field name="model_id" ref="loyalty.model_loyalty_card"/>
         <field name="trigger">on_create</field>
-        <field name="filter_domain">[("program_id.program_type", "=", "next_order_coupons"), ("expiration_date", "=", False)]</field>
+        <field name="filter_domain">[("program_id.program_type", "in", ["next_order_coupons", "loyalty"]), ("expiration_date", "=", False)]</field>
     </record>
 
     <record id="loyalty_card_expiry_action" model="ir.actions.server">

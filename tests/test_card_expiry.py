@@ -16,6 +16,10 @@ class TestCardExpiry(TransactionCase):
             'name': "Next order coupon",
             'program_type': 'next_order_coupons',
         })
+        cls.loyalty_program = cls.env['loyalty.program'].create({
+            'name': "Loyalty card",
+            'program_type': 'loyalty',
+        })
         cls.ewallet_program = cls.env['loyalty.program'].create({
             'name': "Wallet",
             'program_type': 'ewallet',
@@ -30,6 +34,13 @@ class TestCardExpiry(TransactionCase):
 
     def test_a_discount_code_expires_twelve_months_after_creation(self):
         card = self._card(self.discount_program)
+        self.assertEqual(
+            card.expiration_date,
+            card.create_date.date() + relativedelta(months=12),
+        )
+
+    def test_a_loyalty_card_expires_twelve_months_after_creation(self):
+        card = self._card(self.loyalty_program)
         self.assertEqual(
             card.expiration_date,
             card.create_date.date() + relativedelta(months=12),

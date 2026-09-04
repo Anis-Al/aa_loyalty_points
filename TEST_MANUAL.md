@@ -122,9 +122,13 @@ The lot that closes the leak. Card balance is read on the coupon card form.
       → That coupon is **not in the dialog** and **not in the stat button count**.
       Open an **older** order for the same customer → still absent there. Create a
       **new** order for that customer → it does appear in both.
-      → The count and the number of rows in the dialog must always match. `S03294`
+      → The count and the number of rows in the dialog **always** match — both come from
+      the same method, so a mismatch is a bug in that method, not a filter drift. `S03294`
       is the regression case: three cards on the customer, all issued by that order
       or by a later one, so the button must not appear at all.
+      → On a **`loyalty`** (nominative) program the rule must **not** apply: the
+      customer's card carries the id of the first order that made it and is reused
+      forever, so it stays listed on that order and on every later one.
 
 - [ ] **B-01c The Code column lines up.**
       In the dialog, the value under **Code** starts at the same left edge as the
@@ -135,11 +139,32 @@ The lot that closes the leak. Card balance is read on the coupon card form.
       → It turns to "Copied" and the code is on the clipboard. Paste it into the
       order's **Coupon Code** button to check it is the real code.
 
-- [ ] **B-04 No button once a coupon is used on the order.**
-      Take an order whose stat button shows a count, apply one of its coupon codes
-      (**Coupon Code** button), then reload the form.
+- [ ] **B-04 No button once a *discount code* is used on the order.**
+      Take an order whose stat button shows a count, apply one of its
+      `next_order_coupons` codes (**Coupon Code** button), then reload the form.
       → The **Coupons** button is gone entirely. Remove the reward line → it comes
       back. 20 live orders already carry a coupon line and must show no button.
+
+- [ ] **B-04b A nominative card keeps its button.**
+      Open an order for a customer holding a card on a **`loyalty`** program. Core
+      loads that card into the order by itself once the customer is set.
+      → The **Coupons** button is **still there**, showing the card and its code.
+      This is the whole point of B-04 not applying here: a nominative card is the
+      customer's permanent card, never consumed, so the code must stay readable.
+
+- [ ] **B-06 An order cannot spend the points it just earned.**
+      On a `loyalty` program set to **Use points on = Future orders**: take a customer
+      whose card is at **zero**, create an order that earns points, confirm it, then try
+      to apply the card's code on that same order.
+      → **No Coupons button at all** — the card holds nothing this order can spend, so it
+      is not offered. If you reach the code another way, applying it is refused with
+      *"The coupon does not have enough points for the selected reward."*
+      Create a **new** order for that customer → the button is back and the points are
+      spendable there.
+      → With a carried-over balance the order may still redeem **that** balance, never
+      more: a card at 500 on an order earning 100 offers 500, not 600.
+      → Set the program to **Current & Future orders** and the same order may spend its
+      own points again, on the quotation as well.
 
 - [ ] **B-05 Points to Use on the contact.**
       Open a customer holding a balance — CENTRE DE SANTE ONAKIA (partner 458)
@@ -199,7 +224,7 @@ as one of the 28 customers who already hold a card.
       → **No Odoo report header** (no date / company name / page numbers line) and
       **no footer**. Top to bottom: logo + *Récompense de fidélité*, cream
       congratulations card, navy card with the code and the barcode, the points
-      card (balance, money value, statement table Date / Description / Programme /
+      card (balance, money value, statement table Date / Description /
       Gagnés / Utilisés, *Solde actuel* row), *Validité* / *Besoin d'aide ?*
       (reading "du lundi au vendredi de 8h à 17h, et le samedi de 8h à 14h"),
       thank-you block, navy contact bar.
@@ -217,6 +242,13 @@ as one of the 28 customers who already hold a card.
       Default is 50 when the parameter is absent; `0` prints everything.
       **Delete the parameter afterwards.**
 
+- [ ] **C-03b *Détail de vos points* shrinks past 3 movements.**
+      Print a card with exactly **3** movements, then one with **4** or more.
+      → At 3 the table keeps its normal type and row height. At 4 it switches to
+      smaller type and tighter rows, so a long history stays on the page. Nothing
+      else on the card changes size — the balance column, the headings and the
+      *Solde actuel* row are identical on both PDFs.
+
 - [ ] **C-04 The e-mail is a statement.**
       Card ▸ Send by Email.
       → Body reads "Hello …, Thank you for your loyalty", then balance, card code,
@@ -225,12 +257,20 @@ as one of the 28 customers who already hold a card.
 
 ---
 
-## F — Expiry on discount codes
+## F — Expiry on discount codes and loyalty cards
 
 - [ ] **F-01 A new discount code expires in 12 months.** Confirm an order that
       generates a next-order coupon, open **Sales > Products > Coupons** (or the order's
       **Coupons** button) and read the new card.
       → **Expiration Date** = the day it was created, one year on.
+
+- [ ] **F-01b A new loyalty card expires in 12 months.** Confirm an order for a
+      customer with no card yet on a **`loyalty`** program, then read the card core
+      created for them.
+      → **Expiration Date** = the day it was created, one year on. ⚠️ On a
+      nominative program this is the customer's **only** card: on that date the
+      running balance stops being spendable and the card drops out of the portal,
+      the **Points to Use** total and the **Coupons** button.
 
 - [ ] **F-02 An eWallet card gets no expiry.** Generate a card on the Gift Cards
       program.
